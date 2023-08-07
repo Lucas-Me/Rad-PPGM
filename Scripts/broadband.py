@@ -140,11 +140,12 @@ def transmitance_rotational_H2O(T, u):
 	# Calculos
 	# ------------------------------------------------------------
 	T0 = 260 # K
-	S_S0 = np.exp(a * (T - T0) + b * (T - T0) ** 2) # S / S0
+	a1 = np.exp(a * (T - T0) + b * (T - T0) ** 2) # S / S0
+	a2 = np.exp(a_ * (T - T0) + b_ * (T - T0) ** 2)
 
 	# Transmitancia Difusa
-	termo_raiz = 1 + 1.66 * S_S0 * Rw2 / Rw1 * u
-	transmitance = 1.66 * S_S0 * Rw1 * u / np.power(termo_raiz, 0.5)
+	termo_raiz = 1 + 1.66 * (a1 ** 2 / a2) * (Rw1 / Rw2) * u
+	transmitance = 1.66 * a1 * Rw1 * u / np.power(termo_raiz, 0.5)
 	transmitance = np.exp(-transmitance)
 	
 	return (intervalos, transmitance)

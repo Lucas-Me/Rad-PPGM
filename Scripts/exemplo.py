@@ -150,6 +150,5 @@ if __name__ == '__main__':
 		band = 'all' # Todas as bandas
 	)
 
-	print(df)
 	df.to_csv(r'.\resultado.csv', index = False)
 	figure(df)

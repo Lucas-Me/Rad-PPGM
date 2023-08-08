@@ -23,7 +23,7 @@
 import numpy as np
 
 # IMPORTS LOCAIS
-from calc import *
+from scripts.calc import *
 
 # CONSTANTES
 # ----------------------------------------------------------

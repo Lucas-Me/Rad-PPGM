@@ -19,8 +19,8 @@
 import numpy as np
 
 # import local
-import broadband
-import calc
+import scripts.broadband as broadband
+import scripts.calc as calc
 
 
 # COOLING RATE SEM NUVENS

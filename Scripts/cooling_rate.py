@@ -39,7 +39,7 @@ def no_clouds(T, u, q, p, ur, band = 'all'):
 		p: Pressão atmosférica [hPa]
 		ur: Umidade relativa [adimensional]
 
-	Saída: Array[float]
+	Saída: Array[float] [K / day]
 	'''
 
 	# Preparações

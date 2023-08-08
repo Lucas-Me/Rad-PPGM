@@ -64,7 +64,7 @@ intervalos = np.array([
 # Constantes A' e B' segundo a equação 23 de [1].
 dvi = intervalos[:, 1] - intervalos[:, 0]
 dv = 860 # cm^-1
-v_mean = (intervalos[:, 1] + intervalos[:, 0]) / 2
+v_mean = np.mean(intervalos, axis = 1)
 #
 A_ = np.sum(dvi * a_) / dv
 B_ = np.sum(dvi * b_) / dv
@@ -96,32 +96,18 @@ def reduced_path_length_rot(T, p, u):
 	# Temperatura inicial considerada na equação (22) de [1]
 	T0 = 260 # [K]
 
-	# Constantes do ar seco
-	Cp = 1005 # [J * Kg^-1 * K^-1]
-	R = 287 # [J * Kg^-1 * K^-1]
-
 	# Função a ser integrada
-	y = (T / T0) ** (Cp / R) * np.exp(A_ * (T - T0) + B_ * (T - T0) ** 2)
-	# y = p / p[0] * np.exp(A_ * (T - T0) + B_ * (T - T0) ** 2)
-
-	# SE O ARRAY U NÃO ESTIVER EM ORDEM ASCENDENTE
-	# É PRECISO ORGANIZA-LO ANTES DE INTEGRAR
-	ind = np.argsort(u)
-	y_sorted = y[ind]
-	u_sorted = u[ind]
+	u_mean = (u[1:] + u[:-1]) / 2
+	# T = np.interp(u_mean, u, T)
+	y = p[1:] / p[:-1] * np.exp(A_ * (T[1:] - T[:-1]) + B_ * (T[1:] - T[:-1]) ** 2)
 
 	# Inicializa um array vazio para armazenar os resultados
 	resultados = np.zeros(u.shape, dtype = np.float64)
+	du = np.diff(u)
+	for i in range(du.shape[0]):
+		resultados[i + 1] = np.nansum(y[:i + 1] * du[:i + 1])
 
-	# Loop para integração de ydu, de 0 até cada nível "u"
-	for i in range(u.shape[0]):
-
-		resultados[i] = integral(y_sorted[:i + 1], u_sorted[:i + 1])
-
-	# Organiza os resultados na ordem do array original "u"
-	ind1 = np.argsort(ind)
-
-	return resultados[ind1]
+	return resultados
 
 
 def transmitance_rotational_H2O(T, u):
@@ -144,8 +130,8 @@ def transmitance_rotational_H2O(T, u):
 	a2 = np.exp(a_ * (T - T0) + b_ * (T - T0) ** 2)
 
 	# Transmitancia Difusa
-	termo_raiz = 1 + 1.66 * (a1 ** 2 / a2) * (Rw1 / Rw2) * u
-	transmitance = 1.66 * a1 * Rw1 * u / np.power(termo_raiz, 0.5)
+	termo_raiz = 1 + 1.66 * a1 * (Rw1 / Rw2) * u
+	transmitance = 1.66 * a1 * Rw1 * u * np.power(termo_raiz, -0.5)
 	transmitance = np.exp(-transmitance)
 	
 	return (intervalos, transmitance)
@@ -153,7 +139,7 @@ def transmitance_rotational_H2O(T, u):
 
 # BANDA 10µm DO VAPOR D'AGUA (de 8 a 12 µm)
 # ----------------------------------------------------------
-def path_length_10µm(T, u):
+def path_length_10µm(T, u, ur):
 	'''
 	Calcula o Path Length corrigido para esta banda de absorção [8 - 12 µm]
 
@@ -167,36 +153,30 @@ def path_length_10µm(T, u):
 
 		T = Temperatura [K]
 		u = Path Length do H20  [g / cm²]
+		ur = Umidade relativa [%]
 
 	Saída: Array [g / cm²]
 	'''
 		
 	# Definindo variaveis
 	# --------------------------------------------
-	T0 = 296 # K
-	R = 461.5 # R do vapor d´agua [J * Kg^-1 * K^-1]
-	Cv = 1410 # Cv do vapor d'água  [J * Kg^-1 * K^-1]
-	Cp = Cv + R # Cp do vapor d'agua [J * Kg^-1 * K^-1]
 	
-	# Integrando da superfície até o topo
-	# ---------------------------------------------
-
 	# funcao a ser integrada
-	y = ( saturation_vapor_pressure(T - 273.15) / saturation_vapor_pressure(T0 - 273.15) ) * np.exp(- 1800 / (T0 * T) * (T - T0))
-
-	# SE O ARRAY U NÃO ESTIVER EM ORDEM ASCENDENTE
-	# É PRECISO ORGANIZA-LO ANTES DE INTEGRAR
-	ind = np.argsort(u)
-	y_sorted = y[ind]
-	u_sorted = u[ind]
+	T1 = T[1:]
+	T0 = T[:-1]
+	e = saturation_vapor_pressure(T1 - 273.15) * ur[1:]
+	e0 = saturation_vapor_pressure(T0 - 273.15) * ur[:-1]
+	y = (e / e0) * np.exp(- 1800 / (T1 * T0) * (T1 - T0))
 
 	# Inicializa um array vazio para armazenar os resultados
 	resultados = np.zeros(u.shape, dtype = np.float64)
+	du = np.diff(u)
 
-	for i in range(resultados.shape[0]):
-
-		# Nivel i
-		resultados[i] = integral(y_sorted[:i + 1], u_sorted[:i + 1])
+	# Integrando da superfície até o topo
+	# ---------------------------------------------
+	for i in range(du.shape[0]):
+		# Somando da sup até a camada i
+		resultados[i + 1] = np.nansum(y[:i + 1] *  du[:i + 1])
 
 	return resultados
 
@@ -258,18 +238,18 @@ def path_length_6µm(p, u):
 	Saída: Array [g / cm²]
 	'''
 
-	# Constante
-	p0 =  1013 # [hPA]
-	y = p / p0 # adimensional
+	# Preparativos
+	du = np.diff(u)
+	y = p[1:] / p[:-1] # adimensional
 
 	# Resultados
-	new_u = np.zeros(u.shape)
+	new_u = np.zeros(u.shape, dtype = np.float64)
 
 	# loop para integral da sup até cada nível
-	for i in range(u.shape[0]):
+	for i in range(du.shape[0]):
 		
 		# Nível i
-		new_u[i] = integral(y[:i + 1], u[:i + 1])
+		new_u[i + 1] = np.nansum(y[:i + 1] * du[:i + 1])
 
 	return new_u
 
@@ -364,16 +344,17 @@ def emissivity(T, p, u_rot, u_10, u_6, band = 'all'):
 	# Lei de Stefan-Boltzmann
 	steboltz = stefan_boltzmann(T) # J * m^-2 * s^-1
 
-	# transforam em comprimento de onda [cm] e converte para metros
-	lambda_ = (1 / intervalos) * 1e-2
-	mean_lambda = np.mean(lambda_, axis = 1) # [m]
-	dlambda = np.abs(lambda_[:, 1] - lambda_[:, 0]) # [m]
+	# transforma em m^-1 e converte para frequencia (1/s)
+	c = 3 * 1e8
+	f = c * (intervalos * 100)
+	fmean = np.mean(f, axis = 1) # [1/s]
+	df = np.abs(f[:, 1] - f[:, 0]) # [1/s]
 
 	# Calcula a emissividade de cada intervalo e contabiliza
-	emissivity = np.nansum(np.pi * planck(mean_lambda, T) * (1 - transmitance) * dlambda)
+	emissivity = np.nansum(np.pi * planck(fmean, T) * (1 - transmitance) * df) # [J * m^-2 * s^-1]
 
 	# Resultado final
 	# -------------------------------------------------
-	emissivity = emissivity / steboltz
+	emissivity = emissivity / steboltz # adimensional
 
 	return emissivity

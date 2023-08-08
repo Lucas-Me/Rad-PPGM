@@ -54,8 +54,6 @@ def wyoming_read(file_path):
 	df['vapor_density'] = density_water_vapor(
 		T = df['temp'],
 		Td  = df['dwpt'],
-		p = df['pres'],
-		w = df['mixr'] # kg / kg
 	) # em Kg / m³
 
 	# Calcula o path length [Kg / m²]
@@ -71,8 +69,8 @@ def wyoming_read(file_path):
 def read_test(path_name):
 	df = pd.read_csv(path_name, header = 0)
 
-	# Calcula a razao de mistura [g/kg]
-	df['mixr'] = df['water_dens'] / df['air_dens'] * 1e3
+	# Calcula a razao de mistura [kg/kg]
+	df['mixr'] = df['water_dens'] / df['air_dens']
 
 	# Calcula o path length [Kg / m²]
 	df['u'] = path_length(df['water_dens'].values * 1e-3, df['hght'].values)
@@ -98,7 +96,7 @@ def figure(df):
 	# Eixo X
 	left, right = ax.get_xlim()
 	ax.set_xticks(np.arange(-20, 20, 1))
-	ax.set_xlim(left, right)
+	ax.set_xlim(-7, right)
 
 	# Textos
 	ax.set_ylabel("Altitude (Km)")
@@ -106,48 +104,52 @@ def figure(df):
 	
 	# LEgenda e salva
 	plt.legend()
-	name = r'D:\Lucas\Mestrado\Disciplinas\Radiacao Solar Terrestre\Rad-PPGM\resultado.png'
+	name = r'.\resultado.png'
 	fig.savefig(name, bbox_inches = 'tight', dpi = 200)
 	plt.close()
 
 
 if __name__ == '__main__':
-	# df = wyoming_read(r"Dados/sbgl_00z_06ago23.txt")
-	df = read_test(r"D:\Lucas\Mestrado\Disciplinas\Radiacao Solar Terrestre\Rad-PPGM\Dados\perfil_vinicius.txt")
+	df = wyoming_read(r".\Dados\sbgl_00z_06ago23.txt")
+	# df = read_test(r".\Dados\perfil_vinicius.txt")
 
 	# Cooling rate (sem nuvens)
 	df['cr_nc_rot'] = cooling_rate.no_clouds(
 		T = df['temp'].values,
 		u = df['u'].values,
-		q = df['mixr'].values * 1e-3,
+		q = df['mixr'].values,
 		p = df['pres'].values,
+		ur = df['relh'].values,
 		band = 'rotational' # Todas as bandas
 	)
 
 	df['cr_nc_cont'] = cooling_rate.no_clouds(
 		T = df['temp'].values,
 		u = df['u'].values,
-		q = df['mixr'].values * 1e-3,
+		q = df['mixr'].values,
 		p = df['pres'].values,
+		ur = df['relh'].values,
 		band = 'continuum' # Todas as bandas
 	)
 
 	df['cr_nc_vib'] = cooling_rate.no_clouds(
 		T = df['temp'].values,
 		u = df['u'].values,
-		q = df['mixr'].values * 1e-3,
+		q = df['mixr'].values,
 		p = df['pres'].values,
+		ur = df['relh'].values,
 		band = 'vibrational' # Todas as bandas
 	)
 
 	df['cr_nc_all'] = cooling_rate.no_clouds(
 		T = df['temp'].values,
 		u = df['u'].values,
-		q = df['mixr'].values * 1e-3,
+		q = df['mixr'].values,
 		p = df['pres'].values,
+		ur = df['relh'].values,
 		band = 'all' # Todas as bandas
 	)
 
 	print(df)
-	df.to_csv(r'D:\Lucas\Mestrado\Disciplinas\Radiacao Solar Terrestre\Rad-PPGM\resultado.csv', index = False)
+	df.to_csv(r'.\resultado.csv', index = False)
 	figure(df)

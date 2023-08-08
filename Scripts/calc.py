@@ -25,7 +25,7 @@ def integral(y, x):
 	'''
 
 	# Calculando a area de cada intervalo (integral)
-	dx = x[1:] - x[:-1]
+	dx = np.diff(x)
 	area = dx * (y[1:] + y[:-1]) / 2
 
 	# Somando as areas, equivale a integral.
@@ -50,7 +50,7 @@ def saturation_vapor_pressure(T):
 	return 6.112 * np.exp((17.67 * T) / (243.5 + T))
 
 
-def density_water_vapor(T, Td, p, w):
+def density_water_vapor(T, Td):
 	'''
 	Calcula a densidade de vapor d'água na parcela, dada a pressão, temperatura,
 	razão de mistura e temperatura do ponto de orvalho.
@@ -71,17 +71,14 @@ def density_water_vapor(T, Td, p, w):
 
 	# Calculando a densidade do vapor d´agua
 	# --------------------------------------------------------
-	# Constante do ar seco
-	R = 287 # [J * kg^-1 * K^-1] 
+	# Constante individual do vapor d'agua
+	Rv = 461.5# [J * kg^-1 * K^-1] 
 
-	# densidade do ar seco [Kg * hPa * J^-1]
-	Qd = (p - e) / (R * T)
+	# densidade do vapor d'agua [Kg * hPa * J^-1]
+	Qv = e / (Rv * T)
 
-	# Converte unidade para Kg / m³
-	Qd = Qd * 100
-
-	# densidade do vapor d´agua - Qv / Qd = w
-	Qv = w * Qd
+	# # Converte unidade para Kg / m³
+	Qv = Qv * 100
 
 	return Qv
 
@@ -92,8 +89,7 @@ def path_length(Qv, z):
 	absorvedor em função da altitude, desde o topo da atmosfera até o nível de
 	interesse. (Equação 3.2.16 do livro do LIOU)
 
-	Porém, para aplicação no IR termal, consideramos da superfície para cima,
-	de modo que u(z = 0) = 0.
+	U(z = infinito) = 0
 
 	Entrada: Array
 
@@ -106,20 +102,20 @@ def path_length(Qv, z):
 	# CONSIDERANDO QUE Z ESTEJA EM ORDEM CRESCENTE
 	resultados = np.zeros(z.shape, dtype = np.float64)
 	for i in range(resultados.shape[0]):
-		resultados[i] = integral(Qv[:i + 1], z[:i + 1])
+		resultados[i] = integral(Qv[i:], z[i:])
 
 	return resultados
 
-def planck(_lambda, T):
+def planck(v, T):
 	'''
 	Calcula a lei de Planck para um dado comprimento de onda e temperatura.
 
 	Entrada: Array | Float
 
-		_lambda: Comprimento de onda [m]
+		v: frequência [1/s]
 		T: Temperatura [K]
 
-	Saída: Array | Float - [J * m^-3 * s^-1]
+	Saída: Array | Float - [J * m^-2]
 	'''
 
 	# Constante de Planck [J * s]
@@ -132,10 +128,10 @@ def planck(_lambda, T):
 	c = 3 * 1e8
 
 	# Lei de Planck
-	numerador = 2 * H * c ** 2 # [J * m² / s]
-	denominador = _lambda ** 5 * (np.exp(H * c / (K * _lambda * T)) - 1) # [m^5]
+	numerador = 2 * H * v ** 3 # [J * s^-2]
+	denominador = c ** 2 * (np.exp(H * v / (K * T)) - 1) # [m² / s²]
 	
-	# Resultado [J * m^-3 * s^-1]
+	# Resultado [J * m^-2]
 	B = numerador / denominador
 
 	return B

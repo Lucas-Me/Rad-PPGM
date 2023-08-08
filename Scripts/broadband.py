@@ -182,7 +182,7 @@ def path_length_10µm(T, u):
 	# ---------------------------------------------
 
 	# funcao a ser integrada
-	y = ( (T / T0) ** (Cp / R) ) * np.exp(- 1800 / (T0 * T) * (T - T0))
+	y = ( saturation_vapor_pressure(T - 273.15) / saturation_vapor_pressure(T0 - 273.15) ) * np.exp(- 1800 / (T0 * T) * (T - T0))
 
 	# SE O ARRAY U NÃO ESTIVER EM ORDEM ASCENDENTE
 	# É PRECISO ORGANIZA-LO ANTES DE INTEGRAR

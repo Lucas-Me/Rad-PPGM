@@ -184,6 +184,7 @@ def no_clouds(T, u, q, p, ur, band = 'all'):
 	Ef = [broadband.emissivity(
 		T[-1], # T no topo
 		p[-1], # p no topo
+		ur[-1],
 		u_rot[-1] - u_rot[i], # Indice -1 equivale ao path length de toda a coluna atmosferica
 		u_10[-1] - u_10[i],
 		u_6[-1] - u_6[i],
@@ -230,6 +231,7 @@ def no_clouds(T, u, q, p, ur, band = 'all'):
 			Ef2 = broadband.emissivity(
 				T_mean[j],
 				p_mean[j],
+				ur[j],
 				np.abs(u_rot[i + 1] - u_rot_mean[j]),
 				np.abs(u_10[i + 1] - u_10_mean[j]),
 				np.abs(u_6[i + 1] - u_6_mean[j]),
@@ -239,6 +241,7 @@ def no_clouds(T, u, q, p, ur, band = 'all'):
 			Ef1 = broadband.emissivity(
 				T_mean[j],
 				p_mean[j],
+				ur[j],
 				np.abs(u_rot[i] - u_rot_mean[j]),
 				np.abs(u_10[i] - u_10_mean[j]),
 				np.abs(u_6[i] - u_6_mean[j]),

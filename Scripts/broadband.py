@@ -178,7 +178,7 @@ def path_length_10µm(T, u, ur):
 	return resultados
 
 
-def transmitance_10µm(T, p, u):
+def transmitance_10µm(T, p, u, ur):
 	'''
 	Calcula a transmitancia do H20 para banda de 10 µm.
 	Referencias: [3] e [4]
@@ -200,6 +200,8 @@ def transmitance_10µm(T, p, u):
 
 	v = np.mean(intervalos, axis = 1)
 
+	# Self-broadening absorption coefficient
+	# ---------------------------------------
 	# Constantes
 	a = 4.2 # [cm² (g atm^-1)]
 	b = 5588 # [cm² (g atm^-1)]
@@ -211,13 +213,36 @@ def transmitance_10µm(T, p, u):
 	# correcao de temperatura
 	k = k * np.exp(1800 * (1 / T - 1 / 296))
 
-	# Conversão de hPa para atm
-	p0 = 1013.25 # 1 atm [Pa]
-	new_p = p / p0
-	k = k * new_p
 
-	# retorna ja com a conversao em metros
-	return intervalos, np.exp(- k * u ) 
+	# Calculo do coeficiente de extincao (k)
+	# ----------------------------------------
+	# Densidade do vapor d'agua na parcela [g / cm³]
+	Qv = water_vapor_density_from_humidity(T, ur) * 1e-3
+
+	# pressao do vapor d'agua [atm]
+	e = saturation_vapor_pressure(T) * ur * 9.86923 * 1e-4
+
+	# pressao atmosférica [atm]
+	p = p * 9.86923 * 1e-4
+
+	# massa molar da agua [g / mol]
+	mv = 18
+
+	# Numero de moleculas por mol [molecules / mol]
+	avogadro = 6.022 * 1e23
+
+	# quantidade de vapor dagua [molecules / cm³]
+	wv = Qv / mv * avogadro
+
+	# Resultado
+	gama = 0.005
+	sigma = k * (e - gama * (p - e)) # em cm^-1 
+
+	# Calculo da transmitancia
+	# ----------------------------------
+
+	# retorna os intervalos e as suas respectivas transmitancias
+	return intervalos, np.exp(- sigma * u ) 
 
 
 # BANDA 6.3µm DO VAPOR D'AGUA (de 1200 a 2200 cm^-1)
@@ -297,7 +322,7 @@ def transmitance_6µm(T, u):
 # EMISSIVIDADE BROADBAND, CONSIDERANDO TODAS AS BANDAS
 # ----------------------------------------------------------
 
-def emissivity(T, p, u_rot, u_10, u_6, band = 'all'):
+def emissivity(T, p, ur, u_rot, u_10, u_6, band = 'all'):
 	'''
 	Calcula a emissividade broadband dada uma temperatura e path length,
 	através da integração ao longo do espectro IR.
@@ -306,6 +331,7 @@ def emissivity(T, p, u_rot, u_10, u_6, band = 'all'):
 
 		T : Temperatura [K]
 		p : Pressão Atmosférica [hPa]
+		ur : umidade relativa [adimensional]
 		u_rot: Path length corrigido para a banda rotacional [g / cm²]
 		u_10: Path length corrigido para a banda continuum [g / cm²]
 		u_6: Path length corrigido para a banda vibrational [g / cm²]
@@ -317,7 +343,7 @@ def emissivity(T, p, u_rot, u_10, u_6, band = 'all'):
 	# Caso 1: Todas as bandas (rotational, continuum, vibrational-rotational)
 	if band == 'all':
 		v1, tau1 = transmitance_rotational_H2O(T, u_rot)
-		v2, tau2 = transmitance_10μm(T, p, u_10)
+		v2, tau2 = transmitance_10μm(T, p, u_10, ur)
 		v3, tau3 = transmitance_6μm(T, u_6)
 
 		intervalos = np.concatenate((v1, v2, v3)) # Intervalos de numero de onda
@@ -329,7 +355,7 @@ def emissivity(T, p, u_rot, u_10, u_6, band = 'all'):
 
 	# Caso 3: 
 	elif band == 'continuum':
-		intervalos, transmitance = transmitance_10μm(T, p, u_10)
+		intervalos, transmitance = transmitance_10μm(T, p, u_10, ur)
 
 	# Caso 4:
 	elif band == 'vibrational':

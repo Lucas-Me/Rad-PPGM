@@ -97,15 +97,14 @@ def reduced_path_length_rot(T, p, u):
 	T0 = 260 # [K]
 
 	# Função a ser integrada
-	u_mean = (u[1:] + u[:-1]) / 2
-	# T = np.interp(u_mean, u, T)
-	y = p[1:] / p[:-1] * np.exp(A_ * (T[1:] - T[:-1]) + B_ * (T[1:] - T[:-1]) ** 2)
+	y = p / 1013 * np.exp(A_ * (T - T0) + B_ * (T - T0) ** 2)
+	
+	# pedacos da integral (Metodo trapezoidal)
+	integrate = np.diff(u) * (y[1:] + y[:-1]) / 2
 
 	# Inicializa um array vazio para armazenar os resultados
 	resultados = np.zeros(u.shape, dtype = np.float64)
-	du = np.diff(u)
-	for i in range(du.shape[0]):
-		resultados[i + 1] = np.nansum(y[:i + 1] * du[:i + 1])
+	resultados[1:] = np.cumsum(integrate)
 
 	return resultados
 
@@ -162,21 +161,19 @@ def path_length_10µm(T, u, ur):
 	# --------------------------------------------
 	
 	# funcao a ser integrada
-	T1 = T[1:]
-	T0 = T[:-1]
-	e = saturation_vapor_pressure(T1 - 273.15) * ur[1:]
-	e0 = saturation_vapor_pressure(T0 - 273.15) * ur[:-1]
-	y = (e / e0) * np.exp(- 1800 / (T1 * T0) * (T1 - T0))
+	T0 = 296
+	e0 = saturation_vapor_pressure(T0) * ur[0]
+	e = saturation_vapor_pressure(T) * ur
+	y = (e / e0) * np.exp(- (1800 * (T - T0) ) / (T * T0) )
 
 	# Inicializa um array vazio para armazenar os resultados
 	resultados = np.zeros(u.shape, dtype = np.float64)
-	du = np.diff(u)
 
-	# Integrando da superfície até o topo
+	# Integrando da superfície até o topo, metodo trapezoidal
 	# ---------------------------------------------
-	for i in range(du.shape[0]):
-		# Somando da sup até a camada i
-		resultados[i + 1] = np.nansum(y[:i + 1] *  du[:i + 1])
+	integrate = np.diff(u) * (y[1:] + y[:-1]) / 2
+
+	resultados[1:] = np.cumsum(integrate)
 
 	return resultados
 

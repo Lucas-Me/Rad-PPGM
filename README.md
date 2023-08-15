@@ -11,3 +11,4 @@ Reproduzir a taxa de resfriamento a partir do balanço radiativo no infravermelh
 - [3] Infrared continuum absorption by atmospheric water vapor in the 8-12 µm window (Roberts et al., 1976)
 - [4] Influence of Cirrus Clouds on the Infrared Cooling Rate in the Troposphere and Lower Stratosphere (Rowe & Liou, 1978)
 - [5] Optical Properties of the Atmosphere (Third Edition) (McClatchey et al., 1972)
+- [6] A Short Course in Cloud Physics (M.K. Yau, R R Rogers)

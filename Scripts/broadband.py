@@ -162,8 +162,8 @@ def path_length_10µm(T, u, ur):
 	
 	# funcao a ser integrada
 	T0 = 296
-	e0 = saturation_vapor_pressure(T0) * ur[0]
-	e = saturation_vapor_pressure(T) * ur
+	e = saturation_vapor_pressure(T - 273.15) * ur
+	e0 = 19.0651 # 14.3 torr para hPa, tomado para T = 294K
 	y = (e / e0) * np.exp(- (1800 * (T - T0) ) / (T * T0) )
 
 	# Inicializa um array vazio para armazenar os resultados
@@ -213,36 +213,36 @@ def transmitance_10µm(T, p, u, ur):
 	# correcao de temperatura
 	k = k * np.exp(1800 * (1 / T - 1 / 296))
 
+	# # Calculo do coeficiente de extincao (k)
+	# # ----------------------------------------
+	# # Densidade do vapor d'agua na parcela [g / cm³]
+	# Qv = water_vapor_density_from_humidity(T, ur) * 1e-3
 
-	# Calculo do coeficiente de extincao (k)
-	# ----------------------------------------
-	# Densidade do vapor d'agua na parcela [g / cm³]
-	Qv = water_vapor_density_from_humidity(T, ur) * 1e-3
+	# # pressao do vapor d'agua [atm]
+	# e = saturation_vapor_pressure(T - 273.15) * ur * 9.86923 * 1e-4
 
-	# pressao do vapor d'agua [atm]
-	e = saturation_vapor_pressure(T) * ur * 9.86923 * 1e-4
+	# # pressao atmosférica [atm]
+	# p = p * 9.86923 * 1e-4
 
-	# pressao atmosférica [atm]
-	p = p * 9.86923 * 1e-4
+	# # massa molar da agua [g / mol]
+	# mv = 18
 
-	# massa molar da agua [g / mol]
-	mv = 18
+	# # Numero de moleculas por mol [molecules / mol]
+	# avogadro = 6.022 * 1e23
 
-	# Numero de moleculas por mol [molecules / mol]
-	avogadro = 6.022 * 1e23
+	# # quantidade de vapor dagua [molecules / cm³]
+	# wv = Qv / mv * avogadro
 
-	# quantidade de vapor dagua [molecules / cm³]
-	wv = Qv / mv * avogadro
-
-	# Resultado
-	gama = 0.005
-	sigma = k * (e - gama * (p - e)) # em cm^-1 
+	# # Resultado
+	# gama = 0.005
+	# sigma = k * (e - gama * (p - e)) # em cm^-1
 
 	# Calculo da transmitancia
 	# ----------------------------------
+	transmitance = np.exp(- k * u )
 
 	# retorna os intervalos e as suas respectivas transmitancias
-	return intervalos, np.exp(- sigma * u ) 
+	return intervalos, transmitance
 
 
 # BANDA 6.3µm DO VAPOR D'AGUA (de 1200 a 2200 cm^-1)

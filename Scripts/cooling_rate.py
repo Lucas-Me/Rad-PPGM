@@ -59,6 +59,9 @@ def no_clouds(T, u, q, p, ur, band = 'all'):
 	u_rot = broadband.reduced_path_length_rot(T, p, u) # [g / cm²]
 	u_10 = broadband.path_length_10μm(T, u, ur) # [g / cm²]
 	u_6 = broadband.path_length_6μm(p, u) # [g / cm²]
+	print(u_rot)
+	print(u_10)
+	print(u_6)
 
 	# Termo 1: Sigma T^4 * dEf(u1 - u, T1)/du | u1  = u[0]
     # -------------------------------------------
@@ -72,7 +75,7 @@ def no_clouds(T, u, q, p, ur, band = 'all'):
 		band = band
 		) for i in range(u_rot.shape[0])]
 	
-	Ef[-1] = np.nan # no u = u1, a emissividade vai dar zero e a derivada vai ser afetada.
+	# Ef[-1] = np.nan # no u = u1, a emissividade vai dar zero e a derivada vai ser afetada.
 
 	# Derivada simples (u está em ordem crescente)
 	du = np.diff(u) #  [g / cm²]

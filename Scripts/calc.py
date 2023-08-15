@@ -49,6 +49,33 @@ def saturation_vapor_pressure(T):
 
 	return 6.112 * np.exp((17.67 * T) / (243.5 + T))
 
+def relative_humidty_from_density(Qv, T):
+	'''
+	calcula a umidade relativa da parcela de ar, dado a densidade do vapor d'agua
+	e a temperatura da parcela.
+
+	Entrada: Array[Float] | Float
+
+		Qv : Densidade do vapor d'agua [Kg / m^3]
+		T : Temperatura [K]
+
+	Saída: Array[Float] | Float  - [adimensional]
+	'''
+
+	# Constante individual do vapor d'agua
+	Rv = 461.5 #  [J / (Kg * K)]
+
+	# Pressao de vapor da parcela SATURADA [hPa]
+	es = saturation_vapor_pressure(T - 273.15)
+	es = es * 1e2 # converte para [Pa]
+
+	# Densidade do vapor d'água na parcela SATURADA
+	Qvs = es / (Rv * T)
+
+	# Umidade relativa da parcela
+	ur = Qv / Qvs
+
+	return ur
 
 def density_water_vapor(T, Td):
 	'''

@@ -130,6 +130,7 @@ def transmitance_rotational_H2O(T, u):
 
 	# Transmitancia Difusa
 	termo_raiz = 1 + 1.66 * a1 * (Rw1 / Rw2) * u
+	# termo_raiz = 1 + 1.66 * Rw1 / Rw2 * (a1 ** 2) / a2 * u
 	transmitance = 1.66 * a1 * Rw1 * u * np.power(termo_raiz, -0.5)
 	transmitance = np.exp(-transmitance)
 	
@@ -161,7 +162,7 @@ def path_length_10µm(T, u, ur):
 	# --------------------------------------------
 	
 	# funcao a ser integrada
-	T0 = 296
+	T0 = 294
 	e = saturation_vapor_pressure(T - 273.15) * ur
 	e0 = 19.0651 # 14.3 torr para hPa, tomado para T = 294K
 	y = (e / e0) * np.exp(- (1800 * (T - T0) ) / (T * T0) )
@@ -200,46 +201,39 @@ def transmitance_10µm(T, p, u, ur):
 
 	v = np.mean(intervalos, axis = 1)
 
+	# propriedades para o calculo do coeficiente de extincao (k)
+	# ----------------------------------------
+	# pressao do vapor d'agua [atm]
+	e = saturation_vapor_pressure(T - 273.15) * ur
+
+	# massa molar da agua [g / mol]
+	mv = 18
+
+	# Numero de moleculas por mol [molecules / mol]
+	avogadro = 6.022 * 1e23
+
 	# Self-broadening absorption coefficient
 	# ---------------------------------------
 	# Constantes
-	a = 4.2 # [cm² (g atm^-1)]
-	b = 5588 # [cm² (g atm^-1)]
-	beta = 7.87 * 1e-3 # [cm]
+	beta = 8.3 * 1e-3 # [cm]
+	a = 1.25 * 1e-22  # mol^-1 cm^2 atm^-1 
+	b = 2.34 * 1e-19 # mol^-1 cm^2 atm^-1
 
-	# K(v , T = 296 K)
-	k = a + b * np.exp(- beta * v) # [cm² (g atm)^-1]
+	# converte a unidade de a e b para [g^-1 cm^2 atm^-1]
+	a = a / (mv / avogadro)
+	b = b / (mv / avogadro)
 
-	# correcao de temperatura
+	# Calcula k e sua correcao de temperatura
+	k = a + b * np.exp(- beta * v) # [g^-1 cm^2 atm^-1]
 	k = k * np.exp(1800 * (1 / T - 1 / 296))
 
-	# # Calculo do coeficiente de extincao (k)
-	# # ----------------------------------------
-	# # Densidade do vapor d'agua na parcela [g / cm³]
-	# Qv = water_vapor_density_from_humidity(T, ur) * 1e-3
-
-	# # pressao do vapor d'agua [atm]
-	# e = saturation_vapor_pressure(T - 273.15) * ur * 9.86923 * 1e-4
-
-	# # pressao atmosférica [atm]
-	# p = p * 9.86923 * 1e-4
-
-	# # massa molar da agua [g / mol]
-	# mv = 18
-
-	# # Numero de moleculas por mol [molecules / mol]
-	# avogadro = 6.022 * 1e23
-
-	# # quantidade de vapor dagua [molecules / cm³]
-	# wv = Qv / mv * avogadro
-
-	# # Resultado
-	# gama = 0.005
-	# sigma = k * (e - gama * (p - e)) # em cm^-1
+	# Considerando P e Ph20
+	gama = 0.005
+	sigma = k * (e + gama * (p - e)) * 9.86923 * 1e-4 # em [g^-1 cm^2]
 
 	# Calculo da transmitancia
 	# ----------------------------------
-	transmitance = np.exp(- k * u )
+	transmitance = np.exp(- sigma * u )
 
 	# retorna os intervalos e as suas respectivas transmitancias
 	return intervalos, transmitance
@@ -262,16 +256,14 @@ def path_length_6µm(p, u):
 
 	# Preparativos
 	du = np.diff(u)
-	y = p[1:] / p[:-1] # adimensional
+	y = p / 1013 # adimensional
 
 	# Resultados
 	new_u = np.zeros(u.shape, dtype = np.float64)
 
-	# loop para integral da sup até cada nível
-	for i in range(du.shape[0]):
-		
-		# Nível i
-		new_u[i + 1] = np.nansum(y[:i + 1] * du[:i + 1])
+	# Integral metodo trapezoidal
+	integrate = du * (y[1:] + y[:-1]) / 2
+	new_u[1:] = np.cumsum(integrate)
 
 	return new_u
 

@@ -55,9 +55,6 @@ def no_clouds(T, u, q, p, ur, band = 'all'):
 	u_rot = broadband.reduced_path_length_rot(T, p, u) # [g / cm²]
 	u_10 = broadband.path_length_10μm(T, u, ur) # [g / cm²]
 	u_6 = broadband.path_length_6μm(p, u) # [g / cm²]
-	# print(u_rot)
-	# print(u_10)
-	# print(u_6)
 
 	# Termo 1: Sigma T^4 * dEf(u1 - u, T1)/du | u1  = u[0]
     # -------------------------------------------
@@ -95,6 +92,7 @@ def no_clouds(T, u, q, p, ur, band = 'all'):
 	u_rot_mean = np.interp(u_mean, u, u_rot)
 	u_10_mean = np.interp(u_mean, u, u_10)
 	u_6_mean = np.interp(u_mean, u, u_6)
+	ur_mean = np.interp(u_mean, u , ur)
 
 	# d(Sigma * T(u')^4)/du'
 	du_ = np.diff(u)
@@ -112,7 +110,7 @@ def no_clouds(T, u, q, p, ur, band = 'all'):
 			Ef2 = broadband.emissivity(
 				T_mean[j],
 				p_mean[j],
-				ur[j],
+				ur_mean[j],
 				np.abs(u_rot[i + 1] - u_rot_mean[j]),
 				np.abs(u_10[i + 1] - u_10_mean[j]),
 				np.abs(u_6[i + 1] - u_6_mean[j]),
@@ -122,7 +120,7 @@ def no_clouds(T, u, q, p, ur, band = 'all'):
 			Ef1 = broadband.emissivity(
 				T_mean[j],
 				p_mean[j],
-				ur[j],
+				ur_mean[j],
 				np.abs(u_rot[i] - u_rot_mean[j]),
 				np.abs(u_10[i] - u_10_mean[j]),
 				np.abs(u_6[i] - u_6_mean[j]),

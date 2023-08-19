@@ -133,14 +133,25 @@ def transmitance_rot(T, u):
 	# ------------------------------------------------------------
 	T0 = 260 # K
 
-	expoente = np.zeros(a.shape)
+	# Curtis-Godson approximation
 	du = np.abs(np.diff(u))
-	for i in range(du.shape[0]):
-		Tm = (T[i + 1] + T[i]) / 2
-		a1 = np.exp(a * (Tm - T0) + b * (Tm - T0) ** 2) # S / S0
-		termo_raiz = 1 + 1.66 * a1 * (Rw1 / Rw2) * du[i]
-		expoente += 1.66 * a1 * Rw1 * du[i] * np.power(termo_raiz, -0.5)
+	n = a.shape[0]
+	exp1 = np.exp(a.reshape((n, 1)) * (T - T0) + b.reshape((n, 1))  * (T - T0) ** 2)
+	exp2 = np.exp(a_.reshape((n, 1)) * (T - T0) + b_.reshape((n, 1))  * (T - T0) ** 2)
+
+	# Se du = 0, transmitancia é 1.
+	if du.shape[0] == 0:
+		return (intervalos, np.ones(n))
+
+	# S/s0
+	Sm = np.matmul((exp1[:, 1:] + exp1[:, :-1]) / 2, du)
+	Am = np.matmul((exp2[:, 1:] + exp2[:, :-1]) / 2, du)
 	
+	# Termo da transmitanica difusa
+	termo_raiz = (1 + 1.66 * Rw1 / Rw2 * Sm * Sm / Am)
+	expoente = 1.66 * Sm * Rw1 * np.power(termo_raiz, -0.5)
+	
+	# Calculo da transmitancia difusa
 	transmitance = np.exp(-expoente)
 	
 	return (intervalos, transmitance)
@@ -221,6 +232,10 @@ def transmitance_cont(T, u, p, e):
 	# Numero de onda medio entre cada intervalo
 	v = np.mean(intervalos, axis = 1)
 
+	# Se apenas um valor, consdira-se u = 0, logo Transmitancia = 1.
+	if T.shape[0] <= 1:
+		return (intervalos, np.ones(v.shape[0]))
+
 	# propriedades para o calculo do coeficiente de extincao (k)
 	# ----------------------------------------
 	# massa molar da agua [g / mol]
@@ -240,18 +255,27 @@ def transmitance_cont(T, u, p, e):
 	a = a / (mv / avogadro)
 	b = b / (mv / avogadro)
 
-	# Calcula k e sua correcao de temperatura
+	# Calcula k
 	k = a + b * np.exp(- beta * v) # [g^-1 cm^2 atm^-1]
-	k = k.reshape((3, 1)) * np.exp(1800 * (1 / T - 1 / 296))
 
-	# Considerando P e Ph20
+	# Correcao de temperatura e pressao
 	gama = 0.005
-	sigma = k * (e + gama * (p * 1e2 - e)) * 9.86923 * 1e-6 # em [g^-1 cm^2]
+	correcao_T = np.exp(1800 * (1 / T - 1 / 296)) 
+	correcao_P = (e + gama * (p * 1e2 - e)) * 9.86923 * 1e-6 # [atm]
+	
+	# k corrigido (sigma)
+	sigma = np.matmul(
+		k.reshape((3, 1)),
+		(correcao_T * correcao_P).reshape((1, e.shape[0]))
+	)  # em [g^-1 cm^2]
 
 	# Calculo da transmitancia
 	# ----------------------------------
-	expoente = np.abs(np.diff(u)) * (sigma[:, 1:] + sigma[:, :-1]) / 2
-	transmitance = np.exp(- np.nansum(expoente, axis = 1))
+	expoente = np.matmul(
+		 (sigma[:, 1:] + sigma[:, :-1]) / 2,
+		 np.abs(np.diff(u))
+	)
+	transmitance = np.exp(-expoente)
 
 	# retorna os intervalos e as suas respectivas transmitancias
 	return intervalos, transmitance

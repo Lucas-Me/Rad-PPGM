@@ -100,7 +100,6 @@ class CoolingRate(object):
 			T_topo, 
 			n1 = i, # "U" em toda a coluna
 			n2 = self.u.shape[0] - 1,
-			u_rot = self.u_rot[-1],
 			u_vib = self.u_vib[-1],
 			band = band
 			) for i in range(self.u.shape[0])]
@@ -124,7 +123,6 @@ class CoolingRate(object):
 		# termos medios
 		u_mean = (self.u[:-1] + self.u[1:]) / 2
 		T_mean = np.interp(u_mean, self.u, self.T)
-		u_rot_mean = np.interp(u_mean, self.u, self.u_rot)
 		u_vib_mean = np.interp(u_mean, self.u, self.u_vib)
 
 		# d(Sigma * T(u')^4)/du'
@@ -143,7 +141,6 @@ class CoolingRate(object):
 					T_mean[j],
 					n1 = i + 1,
 					n2 = j,
-					u_rot = u_rot_mean[j],
 					u_vib = u_vib_mean[j],
 					band = band
 					)
@@ -152,7 +149,6 @@ class CoolingRate(object):
 					T_mean[j],
 					n1 = i,
 					n2 = j,
-					u_rot = u_rot_mean[j],
 					u_vib = u_vib_mean[j],
 					band = band
 				)
@@ -176,7 +172,7 @@ class CoolingRate(object):
 
 		return cooling_rate
 
-	def _emissivity(self, T, n1, n2, u_rot, u_vib, band : str = 'all'):
+	def _emissivity(self, T, n1, n2, u_vib, band : str = 'all'):
 		'''
 		Calcula a emissividade broadband, considerando todas as bandas ou apenas
 		a banda de absorcao especificada pelo usuario.
@@ -191,8 +187,6 @@ class CoolingRate(object):
 			Indice que representa o nivel inicial da coluna atmosferica
 		n2 : int
 			Indice que representa o nivel final da coluna atmosferica.
-		u_rot : float
-			Termo do u corrigido para o rotacional em n2, ou o termo medio
 		u_vib : float
 			Termo do u corrigido para o vibracional em n2, ou o termo medio
 		band : str
@@ -209,17 +203,21 @@ class CoolingRate(object):
 			Emissividade broadband [adimensional]
 		'''
 
+		# Parametros
+		step = 1 if n2 > n1 else -1
+		fatia = slice(n1, n2 + 1, step)
+
 		# Caso 1: Todas as bandas (rotational, continuum, vibrational-rotational)
 		if band == 'all':
 			v1, tau1 = broadband.transmitance_rot(
-				self.T[n1 : n2 + 1],
-				self.u_rot[n1 : n2 + 1]
+				self.T[fatia],
+				self.u_rot[fatia]
 				)
 			v2, tau2 = broadband.transmitance_cont(
-				self.T[n1 : n2 + 1],
-				self.u_cont[n1:n2 + 1],
-				self.p[n1:n2 + 1],
-				self.e[n1:n2 + 1]
+				self.T[fatia],
+				self.u_cont[fatia],
+				self.p[fatia],
+				self.e[fatia]
 				)
 			v3, tau3 = broadband.transmitance_vib(
 				np.abs(self.u_vib[n1] - u_vib)
@@ -231,17 +229,17 @@ class CoolingRate(object):
 		# Caso 2:
 		elif band == 'rot':
 			intervalos, transmitance = broadband.transmitance_rot(
-				self.T[n1 : n2 + 1],
-				self.u_rot[n1 : n2 + 1]
+				self.T[fatia],
+				self.u_rot[fatia]
 				)
 
 		# Caso 3: 
 		elif band == 'cont':
 			intervalos, transmitance = broadband.transmitance_cont(
-				self.T[n1 : n2 + 1],
-				self.u_cont[n1:n2 + 1],
-				self.p[n1:n2 + 1],
-				self.e[n1:n2 + 1]
+				self.T[fatia],
+				self.u_cont[fatia],
+				self.p[fatia],
+				self.e[fatia]
 				)
 
 		# Caso 4:

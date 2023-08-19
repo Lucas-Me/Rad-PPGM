@@ -36,7 +36,7 @@ def read_profile(file_path):
 	# ozone_density | g / m³ | Densidade do ozonio na parcela
 
 	# Calcula a razao de mistura | Adimensional
-	df['mixr'] = df['water_density'] / df["air_density"]
+	df['mixr'] = df['water_density'] / (df["air_density"] - df['water_density'])
 
 	# Converte a altitude de [km] para [m]
 	df['hght'] *= 1e3
@@ -53,7 +53,7 @@ def read_profile(file_path):
 		Qv = df['water_density'] * 1e-3, # converte de [g/m³] para [Kg/m³]
 		T =  df['temp']
 	)
-
+	
 	return df
 
 
@@ -87,30 +87,31 @@ def figura(df):
 if __name__ == '__main__':
 	df = read_profile(r".\Dados\tropical.csv")
 
-	df['cr_nc_rot'] = cooling_rate.no_clouds(
-		T = df['temp'].values,
-		u = df['u'].values,
-		q = df['mixr'].values,
-		p = df['pres'].values,
-		ur = df['relh'].values,
-		band = 'rotational' # Banda rotacional (0 a 1000 cm^-1)
-	) # [K / day]
-
 	df['cr_nc_cont'] = cooling_rate.no_clouds(
 		T = df['temp'].values,
 		u = df['u'].values,
 		q = df['mixr'].values,
 		p = df['pres'].values,
-		ur = df['relh'].values,
+		Qv = df['water_density'].values * 1e-3, # [kg / m^3]
 		band = 'continuum' # Banda continuum (10µm)
 	) # [K / day]
+
+	df['cr_nc_rot'] = cooling_rate.no_clouds(
+		T = df['temp'].values,
+		u = df['u'].values,
+		q = df['mixr'].values,
+		p = df['pres'].values,
+		Qv = df['water_density'].values * 1e-3, # [kg / m^3]
+		band = 'rotational' # Banda rotacional (0 a 1000 cm^-1)
+	) # [K / day]
+
 
 	df['cr_nc_vib'] = cooling_rate.no_clouds(
 		T = df['temp'].values,
 		u = df['u'].values,
 		q = df['mixr'].values,
 		p = df['pres'].values,
-		ur = df['relh'].values,
+		Qv = df['water_density'].values * 1e-3, # [kg / m^3]
 		band = 'vibrational' # Banda vibrational-rotational (6.3µm)
 	) # [K / day]
 
@@ -119,7 +120,7 @@ if __name__ == '__main__':
 		u = df['u'].values,
 		q = df['mixr'].values,
 		p = df['pres'].values,
-		ur = df['relh'].values,
+		Qv = df['water_density'].values * 1e-3, # [kg / m^3]
 		band = 'all' # Todas as bandas
 	) # [K / day]
 

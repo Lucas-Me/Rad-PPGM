@@ -139,7 +139,7 @@ def transmitance_rotational_H2O(T, u):
 
 # BANDA 10µm DO VAPOR D'AGUA (de 8 a 12 µm)
 # ----------------------------------------------------------
-def path_length_10µm(T, u, ur):
+def path_length_10µm(T, u, Qv):
 	'''
 	Calcula o Path Length corrigido para esta banda de absorção [8 - 12 µm]
 
@@ -153,7 +153,7 @@ def path_length_10µm(T, u, ur):
 
 		T = Temperatura [K]
 		u = Path Length do H20  [g / cm²]
-		ur = Umidade relativa [%]
+		Qv: Densidade do vapor d'água na parcela [Kg / m³]
 
 	Saída: Array [g / cm²]
 	'''
@@ -161,11 +161,15 @@ def path_length_10µm(T, u, ur):
 	# Definindo variaveis
 	# --------------------------------------------
 	
+	# Constante individual do vapor d'agua
+	Rv = 461.5 #  [J / (Kg * K)]
+	e = Qv * Rv * T # Lei do gas ideal (Pressao do vapor d'agua) [Pa]
+	#
+	e0 = 1906.51 # 14.3 torr para Pa, tomado para T = 294K
+	T0 = 296
+
 	# funcao a ser integrada
-	T0 = 294
-	e = saturation_vapor_pressure(T - 273.15) * ur
-	e0 = 19.0651 # 14.3 torr para hPa, tomado para T = 294K
-	y = (e / e0) * np.exp(- (1800 * (T - T0) ) / (T * T0) )
+	y = (e / e0) * np.exp(- 1800 * (T - T0) / (T * T0) )
 
 	# Inicializa um array vazio para armazenar os resultados
 	resultados = np.zeros(u.shape, dtype = np.float64)
@@ -179,7 +183,7 @@ def path_length_10µm(T, u, ur):
 	return resultados
 
 
-def transmitance_10µm(T, p, u, ur):
+def transmitance_10µm(T, p, u, Qv):
 	'''
 	Calcula a transmitancia do H20 para banda de 10 µm.
 	Referencias: [3] e [4]
@@ -189,22 +193,26 @@ def transmitance_10µm(T, p, u, ur):
 		T = Temperatura [K] 
 		p = Pressão Atmosférica [hPa]
 		u = Path Length do H20 - Corrigido para P e T nesta banda [g / cm²]
+		Qv: Densidade do vapor d'água na parcela [Kg / m³]
 
 	Saída: tuple(intervalos[Array2D], transmitance)
 	'''
 
 	# Intervalos de numero de onda, segundo [4]
 	intervalos = np.array([
-		[900, 1000],
-		[1000, 1100], 
-		[1100, 1200]]) # [cm^-1]
+		[800, 900],
+		[900, 1000], 
+		[1000, 1200]]) # [cm^-1]
 
 	v = np.mean(intervalos, axis = 1)
 
 	# propriedades para o calculo do coeficiente de extincao (k)
 	# ----------------------------------------
-	# pressao do vapor d'agua [atm]
-	e = saturation_vapor_pressure(T - 273.15) * ur
+	# Constante individual do vapor d'agua
+	Rv = 461.5 #  [J / (Kg * K)]
+
+	# Pressao do vapor d'agua [Pa]
+	e = Qv * Rv * T # Lei do gas ideal
 
 	# massa molar da agua [g / mol]
 	mv = 18
@@ -229,7 +237,7 @@ def transmitance_10µm(T, p, u, ur):
 
 	# Considerando P e Ph20
 	gama = 0.005
-	sigma = k * (e + gama * (p - e)) * 9.86923 * 1e-4 # em [g^-1 cm^2]
+	sigma = k * (e + gama * (p * 1e2 - e)) * 9.86923 * 1e-6 # em [g^-1 cm^2]
 
 	# Calculo da transmitancia
 	# ----------------------------------
@@ -314,7 +322,7 @@ def transmitance_6µm(T, u):
 # EMISSIVIDADE BROADBAND, CONSIDERANDO TODAS AS BANDAS
 # ----------------------------------------------------------
 
-def emissivity(T, p, ur, u_rot, u_10, u_6, band = 'all'):
+def emissivity(T, p, Qv, u_rot, u_10, u_6, band = 'all'):
 	'''
 	Calcula a emissividade broadband dada uma temperatura e path length,
 	através da integração ao longo do espectro IR.
@@ -323,7 +331,7 @@ def emissivity(T, p, ur, u_rot, u_10, u_6, band = 'all'):
 
 		T : Temperatura [K]
 		p : Pressão Atmosférica [hPa]
-		ur : umidade relativa [adimensional]
+		Qv: Densidade do vapor d'água na parcela [Kg / m³]
 		u_rot: Path length corrigido para a banda rotacional [g / cm²]
 		u_10: Path length corrigido para a banda continuum [g / cm²]
 		u_6: Path length corrigido para a banda vibrational [g / cm²]
@@ -335,7 +343,7 @@ def emissivity(T, p, ur, u_rot, u_10, u_6, band = 'all'):
 	# Caso 1: Todas as bandas (rotational, continuum, vibrational-rotational)
 	if band == 'all':
 		v1, tau1 = transmitance_rotational_H2O(T, u_rot)
-		v2, tau2 = transmitance_10μm(T, p, u_10, ur)
+		v2, tau2 = transmitance_10μm(T, p, u_10, Qv)
 		v3, tau3 = transmitance_6μm(T, u_6)
 
 		intervalos = np.concatenate((v1, v2, v3)) # Intervalos de numero de onda
@@ -347,7 +355,7 @@ def emissivity(T, p, ur, u_rot, u_10, u_6, band = 'all'):
 
 	# Caso 3: 
 	elif band == 'continuum':
-		intervalos, transmitance = transmitance_10μm(T, p, u_10, ur)
+		intervalos, transmitance = transmitance_10μm(T, p, u_10, Qv)
 
 	# Caso 4:
 	elif band == 'vibrational':
@@ -366,10 +374,6 @@ def emissivity(T, p, ur, u_rot, u_10, u_6, band = 'all'):
 	df = np.abs(f[:, 1] - f[:, 0]) # [1/s]
 
 	# Calcula a emissividade de cada intervalo e contabiliza
-	emissivity = np.nansum(np.pi * planck(fmean, T) * (1 - transmitance) * df) # [J * m^-2 * s^-1]
-
-	# Resultado final
-	# -------------------------------------------------
-	emissivity = emissivity / steboltz # adimensional
-
+	emissivity = np.nansum(np.pi * planck(fmean, T) * (1 - transmitance) * df / steboltz) # [J * m^-2 * s^-1]
+	
 	return emissivity

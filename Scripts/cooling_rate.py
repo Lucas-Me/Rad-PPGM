@@ -26,7 +26,7 @@ import scripts.calc as calc
 # COOLING RATE SEM NUVENS
 # -------------------------------------
 
-def no_clouds(T, u, q, p, ur, band = 'all'):
+def no_clouds(T, u, q, p, Qv, band = 'all'):
 	'''
 	Calcula o cooling rate, considerando apenas o vapor d'água e
 	uma atmosfera sem nuvens, a partir da equação (5) de [1].
@@ -40,7 +40,7 @@ def no_clouds(T, u, q, p, ur, band = 'all'):
 		u: Path Length [g / cm²]
 		q: Razão de mistura do ar úmido [adimensional - Kg/Kg]
 		p: Pressão atmosférica [hPa]
-		ur: Umidade relativa [adimensional]
+		Qv: Densidade do vapor d'água na parcela [Kg / m³]
 
 	Saída: Array[float] [K / day]
 	'''
@@ -53,7 +53,7 @@ def no_clouds(T, u, q, p, ur, band = 'all'):
 
 	# Calculo do u corrigido para cada banda
 	u_rot = broadband.reduced_path_length_rot(T, p, u) # [g / cm²]
-	u_10 = broadband.path_length_10μm(T, u, ur) # [g / cm²]
+	u_10 = broadband.path_length_10μm(T, u, Qv) # [g / cm²]
 	u_6 = broadband.path_length_6μm(p, u) # [g / cm²]
 
 	# Termo 1: Sigma T^4 * dEf(u1 - u, T1)/du | u1  = u[0]
@@ -62,7 +62,7 @@ def no_clouds(T, u, q, p, ur, band = 'all'):
 	Ef = [broadband.emissivity(
 		T[-1], # T no topo
 		p[-1], # p no topo
-		ur[-1],
+		Qv[-1], # Densidade do vapor d'água no topo
 		u_rot[-1] - u_rot[i], # Indice -1 equivale ao path length de toda a coluna atmosferica
 		u_10[-1] - u_10[i],
 		u_6[-1] - u_6[i],
@@ -92,7 +92,7 @@ def no_clouds(T, u, q, p, ur, band = 'all'):
 	u_rot_mean = np.interp(u_mean, u, u_rot)
 	u_10_mean = np.interp(u_mean, u, u_10)
 	u_6_mean = np.interp(u_mean, u, u_6)
-	ur_mean = np.interp(u_mean, u , ur)
+	Qv_mean = np.interp(u_mean, u , Qv)
 
 	# d(Sigma * T(u')^4)/du'
 	du_ = np.diff(u)
@@ -110,7 +110,7 @@ def no_clouds(T, u, q, p, ur, band = 'all'):
 			Ef2 = broadband.emissivity(
 				T_mean[j],
 				p_mean[j],
-				ur_mean[j],
+				Qv_mean[j],
 				np.abs(u_rot[i + 1] - u_rot_mean[j]),
 				np.abs(u_10[i + 1] - u_10_mean[j]),
 				np.abs(u_6[i + 1] - u_6_mean[j]),
@@ -120,7 +120,7 @@ def no_clouds(T, u, q, p, ur, band = 'all'):
 			Ef1 = broadband.emissivity(
 				T_mean[j],
 				p_mean[j],
-				ur_mean[j],
+				Qv_mean[j],
 				np.abs(u_rot[i] - u_rot_mean[j]),
 				np.abs(u_10[i] - u_10_mean[j]),
 				np.abs(u_6[i] - u_6_mean[j]),

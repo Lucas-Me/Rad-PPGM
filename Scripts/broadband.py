@@ -1,6 +1,6 @@
 # ===================================================================
 # 				Script com funções  mais complexas
-# 			relacionadas ao cálculo da emissivdade broadband
+# 			relacionadas ao cálculo da emissividade broadband
 # 		considerando apenas o vapor d'água e suas bandas de absorção
 
 
@@ -73,24 +73,24 @@ B_ = np.sum(dvi * b_) / dv
 # BANDA ROTACIONAL DO VAPOR D'AGUA (de 0 a 1000 cm^-1)
 # ----------------------------------------------------------
 
-def reduced_path_length_rot(T, p, u):
+def path_length_rot(T, p, u):
 	'''
 	Calculado o path length do vapor d'água de acordo com a equação (22) de [1].
 	considerando a banda rotacional.
-
-	Existem duas formas de calcular qual seria a pressão do ar em T = T0 (260 K)
-	1. Processo Isobárica, onde o termo p / p0 = T / T0
-	2. Processo Adiabática, onde o termo p / p0 = (T / T0) ** (Cp / R)
-
-	Esta função considera um processo adiabático.
-
-	Entrada: Array
-
-		T: Temperatura [K]
-		p: Pressão atmosférica [hPa]
-		u: Path Length [g/cm² ou Kg/m²]
-		
-	Saída: Array - mesma unidade de u
+	
+	Parameters
+	----------
+	T : Array[float]
+		Temperatura [K]
+	p : Array[float]
+		Pressão atmosférica [hPa]
+	u: Array[float]
+		Path Length [g / cm²]
+	
+	Returns
+	-------
+	u_ajustado : Array[float]
+		Path length corrigido para esta banda de absorção [g / cm²]
 	'''
 
 	# Temperatura inicial considerada na equação (22) de [1]
@@ -103,23 +103,30 @@ def reduced_path_length_rot(T, p, u):
 	integrate = np.diff(u) * (y[1:] + y[:-1]) / 2
 
 	# Inicializa um array vazio para armazenar os resultados
-	resultados = np.zeros(u.shape, dtype = np.float64)
-	resultados[1:] = np.cumsum(integrate)
+	u_ajustado = np.zeros(u.shape, dtype = np.float64)
+	u_ajustado[1:] = np.cumsum(integrate)
 
-	return resultados
+	return u_ajustado
 
 
-def transmitance_rotational_H2O(T, u):
+def transmitance_rot(T, u):
 	'''
 	Calcula a transmitância devido a banda rotacional do H2O.
 	Retorna uma lista, com a transmitância em cada intervalo segundo Rodgers & Walshaw (1966)
 
-	Entrada: Float
-
-		u = Path length Corrigido para banda rotacional (22) de [1] [g / cm²]
-		T = Temperatura [K]
-
-	Saída: tuple(intervalos[Array2D], transmitance)
+	Parameters
+	----------
+	T : float
+		Temperatura [K]
+	u: float
+		Path length corrigido para esta banda de absorção [g / cm²]
+	
+	Returns
+	-------
+	intervalos : Array[float], shape[N, 2]
+		Intervalos de número de onda [cm^-1] considerada no calculo da transmitancia
+	transmitance: Array[float], shape[N]
+		Transmitancia em cada intervalo de numero de onda [adimensional]
 	'''
 
 	# Calculos
@@ -139,63 +146,68 @@ def transmitance_rotational_H2O(T, u):
 
 # BANDA 10µm DO VAPOR D'AGUA (de 8 a 12 µm)
 # ----------------------------------------------------------
-def path_length_10µm(T, u, Qv):
+def path_length_cont(T, u, e):
 	'''
-	Calcula o Path Length corrigido para esta banda de absorção [8 - 12 µm]
+	Calcula o Path Length corrigido para esta banda de absorção [8 - 12 µm].
+	Banda continuum.
 
-	Existem duas formas de calcular qual seria a pressão do gás absorvedor em T = T0 (2)
-	1. Processo Isobárica, onde o termo p / p0 = T / T0
-	2. Processo Adiabática, onde o termo p / po = (T / T0) ** (Cp / R)
+	Parameters
+	----------
+	T : Array[float]
+		A temperatura do ar [K]
+	u : Array[float]
+		Path Length [g / cm²]
+	e : Array[float]
+		Pressão parcial do vapor d'agua [Pa]
 
-	Esta função considera um processo adiabático.
-
-	Entrada: Array
-
-		T = Temperatura [K]
-		u = Path Length do H20  [g / cm²]
-		Qv: Densidade do vapor d'água na parcela [Kg / m³]
-
-	Saída: Array [g / cm²]
+	Returns
+	-------
+	u_ajustado : Array[float]
+		Path length corrigido para esta banda de absorção [g / cm²]
 	'''
 		
 	# Definindo variaveis
 	# --------------------------------------------
-	
-	# Constante individual do vapor d'agua
-	Rv = 461.5 #  [J / (Kg * K)]
-	e = Qv * Rv * T # Lei do gas ideal (Pressao do vapor d'agua) [Pa]
-	#
+	# Cosntantes
 	e0 = 1906.51 # 14.3 torr para Pa, tomado para T = 294K
-	T0 = 296
+	T0 = 296 # [K]
 
 	# funcao a ser integrada
 	y = (e / e0) * np.exp(- 1800 * (T - T0) / (T * T0) )
-
-	# Inicializa um array vazio para armazenar os resultados
-	resultados = np.zeros(u.shape, dtype = np.float64)
 
 	# Integrando da superfície até o topo, metodo trapezoidal
 	# ---------------------------------------------
 	integrate = np.diff(u) * (y[1:] + y[:-1]) / 2
 
-	resultados[1:] = np.cumsum(integrate)
+	# Inicializa um array vazio para armazenar os resultados
+	u_ajustado = np.zeros(u.shape, dtype = np.float64)
+	u_ajustado[1:] = np.cumsum(integrate)
 
-	return resultados
+	return u_ajustado
 
 
-def transmitance_10µm(T, p, u, Qv):
+def transmitance_cont(T, u, p, e):
 	'''
 	Calcula a transmitancia do H20 para banda de 10 µm.
 	Referencias: [3] e [4]
  
-	Entrada: Float
+	Parameters
+	----------
+	T : float
+		A temperatura do ar [K]
+	u : Array[float]
+		Path Length [g / cm²]
+	p : Array[float]
+		Pressão atmosférica [hPa]
+	e : Array[float]
+		Pressão parcial do vapor d'agua [Pa]
 
-		T = Temperatura [K] 
-		p = Pressão Atmosférica [hPa]
-		u = Path Length do H20 - Corrigido para P e T nesta banda [g / cm²]
-		Qv: Densidade do vapor d'água na parcela [Kg / m³]
-
-	Saída: tuple(intervalos[Array2D], transmitance)
+	Returns
+	-------
+	intervalos : Array[float], shape[N, 2]
+		Intervalos de número de onda [cm^-1] considerada no calculo da transmitancia
+	transmitance: Array[float], shape[N]
+		Transmitancia em cada intervalo de numero de onda [adimensional]
 	'''
 
 	# Intervalos de numero de onda, segundo [4]
@@ -204,16 +216,11 @@ def transmitance_10µm(T, p, u, Qv):
 		[900, 1000], 
 		[1000, 1200]]) # [cm^-1]
 
+	# Numero de onda medio entre cada intervalo
 	v = np.mean(intervalos, axis = 1)
 
 	# propriedades para o calculo do coeficiente de extincao (k)
 	# ----------------------------------------
-	# Constante individual do vapor d'agua
-	Rv = 461.5 #  [J / (Kg * K)]
-
-	# Pressao do vapor d'agua [Pa]
-	e = Qv * Rv * T # Lei do gas ideal
-
 	# massa molar da agua [g / mol]
 	mv = 18
 
@@ -237,11 +244,12 @@ def transmitance_10µm(T, p, u, Qv):
 
 	# Considerando P e Ph20
 	gama = 0.005
-	sigma = k * (e + gama * (p * 1e2 - e)) * 9.86923 * 1e-6 # em [g^-1 cm^2]
+	sigma = k.reshape([3, 1]) * (e + gama * (p * 1e2 - e)) * 9.86923 * 1e-6 # em [g^-1 cm^2]
 
 	# Calculo da transmitancia
 	# ----------------------------------
-	transmitance = np.exp(- sigma * u )
+	expoente = np.abs(np.diff(u)) * (sigma[:, 1:] + sigma[:, :-1]) / 2
+	transmitance = np.exp(- np.nansum(expoente, axis = 1))
 
 	# retorna os intervalos e as suas respectivas transmitancias
 	return intervalos, transmitance
@@ -249,44 +257,54 @@ def transmitance_10µm(T, p, u, Qv):
 
 # BANDA 6.3µm DO VAPOR D'AGUA (de 1200 a 2200 cm^-1)
 # ----------------------------------------------------------
-def path_length_6µm(p, u):
+def path_length_vib(u, p):
 	'''
 	Calcula o Path Length corrigido para esta banda de absorção 6.3µm.
 	Referência: [1]
 
-	Entrada: Array
+	Parameters
+	----------
+	u : Array[float]
+			Path Length [g / cm²]
+	p : Array[float]
+		Pressão atmosférica [hPa]
 
-		p = Pressão Atmosférica [hPa]
-		u = Path Length do H20  [g / cm²]
-
-	Saída: Array [g / cm²]
+	Returns
+	-------
+	u_ajustado : Array[float]
+		Path length corrigido para esta banda de absorção [g / cm²]
 	'''
 
 	# Preparativos
 	du = np.diff(u)
 	y = p / 1013 # adimensional
 
-	# Resultados
-	new_u = np.zeros(u.shape, dtype = np.float64)
-
 	# Integral metodo trapezoidal
 	integrate = du * (y[1:] + y[:-1]) / 2
-	new_u[1:] = np.cumsum(integrate)
 
-	return new_u
+	# Resultados
+	u_ajustado = np.zeros(u.shape, dtype = np.float64)
+	u_ajustado[1:] = np.cumsum(integrate)
+
+	return u_ajustado
 
 
-def transmitance_6µm(T, u):
+def transmitance_vib(u):
 	'''
 	Calcula a transmissividade do H20 para banda de 6.3 µm.
 	Referencias: [1] e [4]
  
-	Entrada: Float
+	Parameters
+	----------
+	u : float
+		Path Length [g / cm²]
 
-		T = Temperatura [K] 
-		u = Path Length do H20 - Corrigido para P nesta banda [g / cm²]
-
-	Saída: tuple(intervalos[Array2D], transmitance)
+	Returns
+	-------
+	intervalos : Array[float], shape[N, 2]
+		Intervalos de número de onda [cm^-1] considerada no calculo da transmitancia
+	transmitance: Array[float], shape[N]
+		Transmitancia em cada intervalo de numero de onda [adimensional]
 	'''
 
 	# Intervalos de numero de onda
@@ -317,63 +335,3 @@ def transmitance_6µm(T, u):
 
 	# Resultado final
 	return (intervalos, transmitance)
-
-
-# EMISSIVIDADE BROADBAND, CONSIDERANDO TODAS AS BANDAS
-# ----------------------------------------------------------
-
-def emissivity(T, p, Qv, u_rot, u_10, u_6, band = 'all'):
-	'''
-	Calcula a emissividade broadband dada uma temperatura e path length,
-	através da integração ao longo do espectro IR.
-
-	Entrada: Float
-
-		T : Temperatura [K]
-		p : Pressão Atmosférica [hPa]
-		Qv: Densidade do vapor d'água na parcela [Kg / m³]
-		u_rot: Path length corrigido para a banda rotacional [g / cm²]
-		u_10: Path length corrigido para a banda continuum [g / cm²]
-		u_6: Path length corrigido para a banda vibrational [g / cm²]
-		band: Banda do espectro a ser considerada ['all', 'rotational', 'continuum', 'vibrational']
-
-	Saída: Float
-	'''
-
-	# Caso 1: Todas as bandas (rotational, continuum, vibrational-rotational)
-	if band == 'all':
-		v1, tau1 = transmitance_rotational_H2O(T, u_rot)
-		v2, tau2 = transmitance_10μm(T, p, u_10, Qv)
-		v3, tau3 = transmitance_6μm(T, u_6)
-
-		intervalos = np.concatenate((v1, v2, v3)) # Intervalos de numero de onda
-		transmitance = np.concatenate((tau1, tau2, tau3)) # Transmitancia em cada intervalo
-	
-	# Caso 2:
-	elif band == 'rotational':
-		intervalos, transmitance = transmitance_rotational_H2O(T, u_rot)
-
-	# Caso 3: 
-	elif band == 'continuum':
-		intervalos, transmitance = transmitance_10μm(T, p, u_10, Qv)
-
-	# Caso 4:
-	elif band == 'vibrational':
-		intervalos, transmitance = transmitance_6μm(T, u_6)
-	
-	else: # Lança um erro
-		raise KeyError
-	
-	# Lei de Stefan-Boltzmann
-	steboltz = stefan_boltzmann(T) # J * m^-2 * s^-1
-
-	# transforma em m^-1 e converte para frequencia (1/s)
-	c = 3 * 1e8
-	f = c * (intervalos * 100)
-	fmean = np.mean(f, axis = 1) # [1/s]
-	df = np.abs(f[:, 1] - f[:, 0]) # [1/s]
-
-	# Calcula a emissividade de cada intervalo e contabiliza
-	emissivity = np.nansum(np.pi * planck(fmean, T) * (1 - transmitance) * df / steboltz) # [J * m^-2 * s^-1]
-	
-	return emissivity

@@ -87,42 +87,18 @@ def figura(df):
 if __name__ == '__main__':
 	df = read_profile(r".\Dados\tropical.csv")
 
-	df['cr_nc_cont'] = cooling_rate.no_clouds(
+	modelo = cooling_rate.CoolingRate(
 		T = df['temp'].values,
 		u = df['u'].values,
 		q = df['mixr'].values,
 		p = df['pres'].values,
 		Qv = df['water_density'].values * 1e-3, # [kg / m^3]
-		band = 'continuum' # Banda continuum (10µm)
 	) # [K / day]
 
-	df['cr_nc_rot'] = cooling_rate.no_clouds(
-		T = df['temp'].values,
-		u = df['u'].values,
-		q = df['mixr'].values,
-		p = df['pres'].values,
-		Qv = df['water_density'].values * 1e-3, # [kg / m^3]
-		band = 'rotational' # Banda rotacional (0 a 1000 cm^-1)
-	) # [K / day]
-
-
-	df['cr_nc_vib'] = cooling_rate.no_clouds(
-		T = df['temp'].values,
-		u = df['u'].values,
-		q = df['mixr'].values,
-		p = df['pres'].values,
-		Qv = df['water_density'].values * 1e-3, # [kg / m^3]
-		band = 'vibrational' # Banda vibrational-rotational (6.3µm)
-	) # [K / day]
-
-	df['cr_nc_all'] = cooling_rate.no_clouds(
-		T = df['temp'].values,
-		u = df['u'].values,
-		q = df['mixr'].values,
-		p = df['pres'].values,
-		Qv = df['water_density'].values * 1e-3, # [kg / m^3]
-		band = 'all' # Todas as bandas
-	) # [K / day]
+	df['cr_nc_rot'] = modelo.clear_sky(band = 'rot')
+	df['cr_nc_cont'] = modelo.clear_sky(band = 'cont')
+	df['cr_nc_vib'] = modelo.clear_sky(band = 'vib')
+	df['cr_nc_all'] = modelo.clear_sky(band = 'all')
 
 	# print(df)
 	figura(df)

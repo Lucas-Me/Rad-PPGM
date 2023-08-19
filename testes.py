@@ -47,7 +47,6 @@ def read_profile(file_path):
 
 	# Calcula a umidade relativa
 	# -------------------------------
-
 	# Densidade do vapor d'agua na parcela SATURADA
 	df['relh'] = relative_humidty_from_density(
 		Qv = df['water_density'] * 1e-3, # converte de [g/m³] para [Kg/m³]
@@ -70,7 +69,6 @@ def figura(df):
 	ax.set_yticks([0, 5, 10, 15])
 
 	# Eixo X
-	left, right = ax.get_xlim()
 	ax.set_xticks(np.arange(-20, 20, 1))
 	ax.set_xlim(-7, 2)
 

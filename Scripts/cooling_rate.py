@@ -67,9 +67,9 @@ class CoolingRate(object):
 		self.e = Qv * self.Rv * T  # Lei do gás ideal 
 
 		# Path length (u) corrigido para cada banda de absorcao
-		self.u_rot = broadband.path_length_rot(T, p, u)
-		self.u_cont = broadband.path_length_cont(T, u, self.e)
-		self.u_vib = broadband.path_length_vib(u, p)
+		self.u_rot = broadband.path_length_rot(T, p, self.u)
+		self.u_cont = broadband.path_length_cont(T, self.u, self.e)
+		self.u_vib = broadband.path_length_vib(self.u, p)
 
 	def clear_sky(self, band : str  = 'all'):
 		'''
@@ -128,17 +128,16 @@ class CoolingRate(object):
 		u_vib_mean = np.interp(u_mean, self.u, self.u_vib)
 
 		# d(Sigma * T(u')^4)/du'
-		du_ = np.diff(self.u)
-		dsigma_t_4_du = np.diff(calc.stefan_boltzmann(self.T)) / du_
+		dsigma_t_4_du = np.diff(calc.stefan_boltzmann(self.T)) / du
 
 		# loop para cada nível da sondagem
 		for i in range(termo2.shape[0] - 1): # ultimo nao incluso
 			
 			# Função a ser integrada
-			dEfdu = np.full(du_.shape[0], fill_value=np.nan)
+			dEfdu = np.full(du.shape[0], fill_value=np.nan)
 
 			# loop para  a integral, da superfície até o topo da sondagem
-			for j in range(du_.shape[0]):
+			for j in range(du.shape[0]):
 				# emissividade em cada nivel
 				Ef2 = self._emissivity(
 					T_mean[j],
@@ -160,16 +159,19 @@ class CoolingRate(object):
 
 				# Derivada simples (u está em ordem crescente)
 				dEf = Ef2 - Ef1
-				dEfdu[j] = dEf / du_[i]
+				dEfdu[j] = dEf / du[i]
 
 			# Função a ser integrada
 			f = dEfdu * dsigma_t_4_du
-			termo2[i] = np.nansum(f * du_) / 10 # Conserta a unidade
+			termo2[i] = np.nansum(f * du) / 10 # Conserta a unidade
 
-		# Resultado final
-		cooling_rate = -1 * (termo1 + termo2) * self.q / self.Cp # [K/s]
+		# Cp do ar umido
+		Cpm = self.Cp * (1 + 0.9 * self.q)
 
-		# Inverte o array e converte a unidade para [K / day]
+		# Taxa de resfriamento
+		cooling_rate = -1 * (termo1 + termo2) * self.q / Cpm # [K/s]
+
+		# converte a unidade para [K / day]
 		cooling_rate = cooling_rate * 3600 * 24
 
 		return cooling_rate
@@ -210,11 +212,11 @@ class CoolingRate(object):
 		# Caso 1: Todas as bandas (rotational, continuum, vibrational-rotational)
 		if band == 'all':
 			v1, tau1 = broadband.transmitance_rot(
-				T,
-				np.abs(self.u_rot[n1] - u_rot)
+				self.T[n1 : n2 + 1],
+				self.u_rot[n1 : n2 + 1]
 				)
 			v2, tau2 = broadband.transmitance_cont(
-				T,
+				self.T[n1 : n2 + 1],
 				self.u_cont[n1:n2 + 1],
 				self.p[n1:n2 + 1],
 				self.e[n1:n2 + 1]
@@ -229,14 +231,14 @@ class CoolingRate(object):
 		# Caso 2:
 		elif band == 'rot':
 			intervalos, transmitance = broadband.transmitance_rot(
-				T,
-				np.abs(self.u_rot[n1] - u_rot)
+				self.T[n1 : n2 + 1],
+				self.u_rot[n1 : n2 + 1]
 				)
 
 		# Caso 3: 
 		elif band == 'cont':
 			intervalos, transmitance = broadband.transmitance_cont(
-				T,
+				self.T[n1 : n2 + 1],
 				self.u_cont[n1:n2 + 1],
 				self.p[n1:n2 + 1],
 				self.e[n1:n2 + 1]

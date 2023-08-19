@@ -116,9 +116,9 @@ def transmitance_rot(T, u):
 
 	Parameters
 	----------
-	T : float
+	T : array[float]
 		Temperatura [K]
-	u: float
+	u: array[float]
 		Path length corrigido para esta banda de absorção [g / cm²]
 	
 	Returns
@@ -132,14 +132,16 @@ def transmitance_rot(T, u):
 	# Calculos
 	# ------------------------------------------------------------
 	T0 = 260 # K
-	a1 = np.exp(a * (T - T0) + b * (T - T0) ** 2) # S / S0
-	a2 = np.exp(a_ * (T - T0) + b_ * (T - T0) ** 2)
 
-	# Transmitancia Difusa
-	termo_raiz = 1 + 1.66 * a1 * (Rw1 / Rw2) * u
-	# termo_raiz = 1 + 1.66 * Rw1 / Rw2 * (a1 ** 2) / a2 * u
-	transmitance = 1.66 * a1 * Rw1 * u * np.power(termo_raiz, -0.5)
-	transmitance = np.exp(-transmitance)
+	expoente = np.zeros(a.shape)
+	du = np.abs(np.diff(u))
+	for i in range(du.shape[0]):
+		Tm = (T[i + 1] + T[i]) / 2
+		a1 = np.exp(a * (Tm - T0) + b * (Tm - T0) ** 2) # S / S0
+		termo_raiz = 1 + 1.66 * a1 * (Rw1 / Rw2) * du[i]
+		expoente += 1.66 * a1 * Rw1 * du[i] * np.power(termo_raiz, -0.5)
+	
+	transmitance = np.exp(-expoente)
 	
 	return (intervalos, transmitance)
 
@@ -193,7 +195,7 @@ def transmitance_cont(T, u, p, e):
  
 	Parameters
 	----------
-	T : float
+	T : Array[float]
 		A temperatura do ar [K]
 	u : Array[float]
 		Path Length [g / cm²]
@@ -240,11 +242,11 @@ def transmitance_cont(T, u, p, e):
 
 	# Calcula k e sua correcao de temperatura
 	k = a + b * np.exp(- beta * v) # [g^-1 cm^2 atm^-1]
-	k = k * np.exp(1800 * (1 / T - 1 / 296))
+	k = k.reshape((3, 1)) * np.exp(1800 * (1 / T - 1 / 296))
 
 	# Considerando P e Ph20
 	gama = 0.005
-	sigma = k.reshape([3, 1]) * (e + gama * (p * 1e2 - e)) * 9.86923 * 1e-6 # em [g^-1 cm^2]
+	sigma = k * (e + gama * (p * 1e2 - e)) * 9.86923 * 1e-6 # em [g^-1 cm^2]
 
 	# Calculo da transmitancia
 	# ----------------------------------

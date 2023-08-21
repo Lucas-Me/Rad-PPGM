@@ -187,7 +187,7 @@ def path_length_cont(T, u, e):
 	# --------------------------------------------
 	# Cosntantes
 	e0 = 1906.51 # 14.3 torr para Pa, tomado para T = 294K
-	T0 = 296 # [K]
+	T0 = 294 # [K]
 
 	# funcao a ser integrada
 	y = (e / e0) * np.exp(- 1800 * (T - T0) / (T * T0) )

@@ -140,6 +140,8 @@ class CoolingRate(object):
 			# loop para  a integral, da superfície até o topo da sondagem
 			for j in range(du.shape[0]):
 				# emissividade em cada nivel, mantendo T(u') cte
+
+				# Media da emissividade 
 				Eb2 = self._emissivity(
 					T_mean[j],
 					n1 = j,
@@ -173,6 +175,152 @@ class CoolingRate(object):
 		cooling_rate = cooling_rate * 3600 * 24
 
 		return cooling_rate
+	
+
+	def _clear_sky(self, band : str  = 'all'):
+		'''
+		Taxa de resfriamento considerando um céu limpo, sem nuvens.
+
+		Parameters
+		----------
+		band : str
+			Especifica a banda de absorcao a ser considerada, default = todas.
+			Opcoes disponiveis são:
+			- 'all' : todas as bandas
+			- 'rot' : apenas a banda do rotacional.
+			- 'cont' : apenas a banda do continuum.
+			- 'vib' : apenas a banda do vibracional-rotacional.
+
+		Returns
+		-------
+		cooling_rate : array[float]
+			Taxa de resfriamento [Kelvin / dia]
+		'''
+
+		# Parametros
+		# ----------
+		# termos medios
+		u_mean = (self.u[:-1] + self.u[1:]) / 2
+
+		# d(Sigma * T(u')^4)/du' 
+		du = np.diff(self.u)
+		dsigma_t_4_du = np.diff(calc.stefan_boltzmann(self.T)) / du
+
+		# Termo 1: Fluxo pra cima
+		# -----------------------
+
+		# Stefan boltman na superficie [J * m^-2 * s^-1]
+		irradiancia_sup = calc.stefan_boltzmann(self.T[0])
+		
+		# Inicializa a integral [J * m^-2 * s^-1]
+		termo_integral1 = np.full(self.nlevs, fill_value=np.nan)
+
+		# loop de u = 0 até u = u
+		for i in range(self.nlevs): # ultimo nao incluso
+			
+			integral_cima = 0
+
+			# loop para a integral, da superfície até o nivel u em questao
+			for j in range(i):
+
+				# Media da emissividade 
+				Ef2 = self._emissivity(
+					self.T[j + 1],
+					n1 = j + 1,
+					n2 = i,
+					u_vib = self.u_vib[j + 1],
+					band = band
+					)
+
+				Ef1 = self._emissivity(
+					self.T[j],
+					n1 = j,
+					n2 = i,
+					u_vib = self.u_vib[j],
+					band = band
+				)
+
+				# Derivada simples (u está em ordem crescente)
+				Ef = (Ef2 + Ef1) / 2
+				integral_cima += Ef * dsigma_t_4_du[j] * du[j]
+
+			termo_integral1[i] = integral_cima
+
+		# calcula o fluxo pra cima
+		up_flux = irradiancia_sup + termo_integral1
+
+
+		# Termo 2: Fluxo pra baixo
+		# -----------------------
+
+		# emissividade em cada nivel devido a emissao do topo
+		T_topo = self.T[-1]
+		Ef = [self._emissivity(
+			T_topo, 
+			n1 = self.nlevs - 1, # "U" em toda a coluna
+			n2 = i,  
+			u_vib = self.u_vib[-1],
+			band = band
+			) for i in range(self.nlevs)]
+		
+		# irradiancia  [J * m^-2 * s^-1]
+		irradiancia_topo = calc.stefan_boltzmann(self.T[-1])
+
+		# Inicializa o termo da integral [J * m^-2 * s^-1]
+		termo_integral2 = np.full(self.nlevs, fill_value = np.nan)
+
+		# loop para cada nivel "u"
+		for i in range(self.nlevs): # ultimo nao incluso
+			
+			integral_baixo = 0
+
+			# loop para a integral, do topo ate o nivel 1 em questoa
+			for j in range(i, self.nlevs - 1):
+
+				# Media da emissividade 
+				Ef2 = self._emissivity(
+					self.T[j + 1],
+					n1 = j + 1,
+					n2 = i,
+					u_vib = self.u_vib[j + 1],
+					band = band
+					)
+
+				Ef1 = self._emissivity(
+					self.T[j],
+					n1 = j,
+					n2 = i,
+					u_vib = self.u_vib[j],
+					band = band
+				)
+
+				# Derivada simples (u está em ordem crescente)
+				Ef = (Ef2 + Ef1) / 2
+				integral_baixo += Ef * dsigma_t_4_du[j] * du[j]
+
+			termo_integral2[i] = integral_baixo
+
+		# calcula o fluxo pra baixo
+		down_flux = irradiancia_topo - termo_integral2
+
+		# Calcula a taxa de resfriamento do IR em cada nivel
+		# -------------------------------------------------
+		# Cp do ar umido
+		Cpm = self.Cp * (1 + 0.9 * self.q)
+
+		# Calcualdo a derivada dos fluxos
+		dF = np.diff(up_flux - down_flux)
+		dfdu = dF / du / 10 # divide por 10 para consertar a unidade
+		dfdu = np.append(dfdu, np.nan)
+
+		# Taxa de resfriamento
+		cooling_rate = -1 * dfdu * self.q / Cpm # [K/s]
+
+		# converte a unidade para [K / day]
+		cooling_rate = cooling_rate * 3600 * 24
+
+		return cooling_rate
+	
 
 	def _emissivity(self, T, n1, n2, u_vib, band : str = 'all'):
 		'''
@@ -208,7 +356,7 @@ class CoolingRate(object):
 		# Parametros
 		if n2 >= n1:
 			step = 1
-			fatia = slice(n1, n2 + 1, step)
+			fatia = slice(n1, n2 + step, step)
 		else:
 			step = -1
 			fatia = slice(n1, n2 - self.nlevs + step, step)

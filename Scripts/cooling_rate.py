@@ -17,6 +17,7 @@
 # IMPORTS
 # -------
 import numpy as np
+import scipy.interpolate as interp
 
 # IMPORTS LOCAIS
 # --------------
@@ -129,41 +130,37 @@ class CoolingRate(object):
 		u_vib_mean = np.interp(u_mean, self.u, self.u_vib)
 
 		# d(Sigma * T(u')^4)/du'
+		# sigma_t4 = interp.CubicSpline(self.u, calc.stefan_boltzmann(self.T))
 		dsigma_t_4_du = np.diff(calc.stefan_boltzmann(self.T)) / du
+		# dsigma_t_4_du = sigma_t4(self.u, 1)
 
 		# loop para cada nível da sondagem
 		for i in range(termo2.shape[0] - 1): # ultimo nao incluso
 			
 			# Função a ser integrada
-			dEfdu = np.full(du.shape[0], fill_value=np.nan)
+			dEf = np.full(self.nlevs, fill_value = np.nan)
 
 			# loop para  a integral, da superfície até o topo da sondagem
-			for j in range(du.shape[0]):
-				# emissividade em cada nivel, mantendo T(u') cte
-
-				# Media da emissividade 
-				Eb2 = self._emissivity(
-					T_mean[j],
+			for j in range(self.nlevs):
+				# emissividade em cada nivel, a partir do nivel n1 ate o nivel n2
+				dEf[j] = self._emissivity(
+					self.T[j],
 					n1 = j,
 					n2 = i + 1,
-					u_vib = u_vib_mean[j],
+					u_vib = self.u_vib[j],
 					band = band
-					)
-
-				Eb1 = self._emissivity(
-					T_mean[j],
+					) - self._emissivity(
+					self.T[j],
 					n1 = j,
 					n2 = i,
-					u_vib = u_vib_mean[j],
+					u_vib = self.u_vib[j],
 					band = band
-				)
-
-				# Derivada simples (u está em ordem crescente)
-				dEfdu[j] = (Eb2 - Eb1) / du[i]
-
+					)
+				
+			dEfdu = dEf / du[i]
+				
 			# Função a ser integrada
-			f = dEfdu * dsigma_t_4_du
-			termo2[i] = np.nansum(f * du) / 10 # Conserta a unidade
+			termo2[i] = np.nansum((dEfdu[1:] + dEfdu[:-1]) / 2 * dsigma_t_4_du * du) / 10 # Conserta a unidade
 
 		# Cp do ar umido
 		Cpm = self.Cp * (1 + 0.9 * self.q)
@@ -199,8 +196,6 @@ class CoolingRate(object):
 
 		# Parametros
 		# ----------
-		# termos medios
-		u_mean = (self.u[:-1] + self.u[1:]) / 2
 
 		# d(Sigma * T(u')^4)/du' 
 		du = np.diff(self.u)

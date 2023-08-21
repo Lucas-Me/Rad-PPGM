@@ -144,7 +144,7 @@ def transmitance_rot(T, u):
 	exp2 = np.exp(a_.reshape((n, 1)) * (T - T0) + b_.reshape((n, 1))  * (T - T0) ** 2)
 
 	# Se du = 0, transmitancia é 1.
-	if du.shape[0] == 0:
+	if du.shape[0] == 0 or np.sum(du) == 0:
 		return (intervalos, np.ones(n))
 
 	# S/s0

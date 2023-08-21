@@ -82,7 +82,7 @@ if __name__ == '__main__':
 		u = df['u'].values,
 		q = df['mixr'].values,
 		p = df['pres'].values,
-		Qv = df['water_density'].values * 1e-3, # [kg / m^3]
+		Qv = df['water_density'].values * 1e-3 # [kg / m^3]
 	) # [K / day]
 
 	df['cr_nc_rot'] = modelo.clear_sky(band = 'rot')

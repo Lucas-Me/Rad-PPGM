@@ -100,22 +100,22 @@ class CoolingRate(object):
 		T_topo = self.T[-1] # "-1" indica no topo da atmosfera
 
 		# emissividade em cada nivel
-		Ef = [self._emissivity(
+		Ef = np.array([self._emissivity(
 			T_topo, 
 			n1 = self.u.shape[0] - 1, # "U" em toda a coluna
 			n2 = i,  
 			u_vib = self.u_vib[-1],
 			band = band
-			) for i in range(self.nlevs)]
+			) for i in range(self.nlevs)])
 		
 		# Derivada simples (u está em ordem crescente)
+		# dEf1du = calc.first_derivative(Ef, self.u)
 		du = np.diff(self.u) #  [g / cm²]
-		dEf = np.diff(np.array(Ef))
-		dEf1du = dEf / du # [( g / cm²)^-1]
+		dEf1du = np.diff(Ef) / du
+		dEf1du = np.append(dEf1du, np.nan)
 
 		# Resultado do termo 1
 		termo1 = -1 * calc.stefan_boltzmann(T_topo) * dEf1du
-		termo1 = np.append(termo1, np.nan) # [J * m^-2 * s^-1 * ( g / cm²)^-1]
 		termo1 = termo1 / 10 # corrigindo unidade para [J * s^-1 * Kg^-1]
 
 		# Termo 2: Integral
@@ -128,39 +128,55 @@ class CoolingRate(object):
 		u_mean = (self.u[:-1] + self.u[1:]) / 2
 		T_mean = np.interp(u_mean, self.u, self.T)
 		u_vib_mean = np.interp(u_mean, self.u, self.u_vib)
+		u_rot_mean = np.interp(u_mean, self.u, self.u_rot)
+		u_cont_mean = np.interp(u_mean, self.u, self.u_cont)
+		p_mean = np.interp(u_mean, self.u, self.p)
+		e_mean = np.interp(u_mean, self.u, self.e)
 
 		# d(Sigma * T(u')^4)/du'
-		# sigma_t4 = interp.CubicSpline(self.u, calc.stefan_boltzmann(self.T))
+		# dsigma_t_4_du = calc.first_derivative(calc.stefan_boltzmann(self.T), self.u)
 		dsigma_t_4_du = np.diff(calc.stefan_boltzmann(self.T)) / du
-		# dsigma_t_4_du = sigma_t4(self.u, 1)
 
 		# loop para cada nível da sondagem
 		for i in range(termo2.shape[0] - 1): # ultimo nao incluso
 			
 			# Função a ser integrada
-			dEf = np.full(self.nlevs, fill_value = np.nan)
+			dEfdu = np.full(self.nlevs - 1, fill_value = np.nan)
 
 			# loop para  a integral, da superfície até o topo da sondagem
-			for j in range(self.nlevs):
-				# emissividade em cada nivel, a partir do nivel n1 ate o nivel n2
-				dEf[j] = self._emissivity(
-					self.T[j],
+			for j in range(self.nlevs - 1):
+				# Termos medios
+				mean_props = dict(
+					T = T_mean[j],
+					u_rot = u_rot_mean[j],
+					u_cont = u_cont_mean[j],
+					p = p_mean[j],
+					e = e_mean[j]
+				)
+
+				# Emissivade até este nivel
+				E1 = self._emissivity(
+					T_mean[j],
 					n1 = j,
 					n2 = i + 1,
-					u_vib = self.u_vib[j],
-					band = band
-					) - self._emissivity(
-					self.T[j],
+					u_vib = u_vib_mean[j],
+					band = band,
+					mean_props = mean_props
+					)
+
+				E0 = self._emissivity(
+					T_mean[j],
 					n1 = j,
 					n2 = i,
-					u_vib = self.u_vib[j],
-					band = band
+					u_vib = u_vib_mean[j],
+					band = band,
+					mean_props = mean_props
 					)
 				
-			dEfdu = dEf / du[i]
-				
+				dEfdu[j] = (E1 - E0) / (self.u[i + 1] - self.u[0])
+					
 			# Função a ser integrada
-			termo2[i] = np.nansum((dEfdu[1:] + dEfdu[:-1]) / 2 * dsigma_t_4_du * du) / 10 # Conserta a unidade
+			termo2[i] = np.nansum(dEfdu * dsigma_t_4_du * du) / 10 # Conserta a unidade
 
 		# Cp do ar umido
 		Cpm = self.Cp * (1 + 0.9 * self.q)
@@ -317,7 +333,7 @@ class CoolingRate(object):
 		return cooling_rate
 	
 
-	def _emissivity(self, T, n1, n2, u_vib, band : str = 'all'):
+	def _emissivity(self, T, n1, n2, u_vib, band : str = 'all', mean_props = {}):
 		'''
 		Calcula a emissividade broadband, considerando todas as bandas ou apenas
 		a banda de absorcao especificada pelo usuario.
@@ -341,6 +357,8 @@ class CoolingRate(object):
 			- 'rot' : apenas a banda do rotacional.
 			- 'cont' : apenas a banda do continuum.
 			- 'vib' : apenas a banda do vibracional-rotacional.
+		mean_props : dict[float]
+			Se considera a emissivade na camada media ou nao.
 
 		Returns
 		-------
@@ -356,18 +374,35 @@ class CoolingRate(object):
 			step = -1
 			fatia = slice(n1, n2 - self.nlevs + step, step)
 
+		# variaveis
+		Tn = self.T[fatia].copy()
+		u_rot = self.u_rot[fatia].copy()
+		u_cont = self.u_cont[fatia].copy()
+		p = self.p[fatia].copy()
+		e = self.e[fatia].copy()
+
+		# se media, interpola as variaveis para a camada media
+		if len(mean_props) > 0:
+			
+			if step < 0 or Tn.shape[0] == 1:
+				Tn = np.insert(Tn, 0, mean_props["T"])
+				u_rot = np.insert(u_rot, 0, mean_props["u_rot"])
+				u_cont = np.insert(u_cont, 0, mean_props["u_cont"])
+				p = np.insert(p, 0, mean_props["p"])
+				e = np.insert(e, 0, mean_props["e"])
+			
+			elif step > 0:
+				Tn[0] = mean_props["T"]
+				u_rot[0] = mean_props["u_rot"]
+				u_cont[0] = mean_props["u_cont"]
+				p[0] = mean_props["p"]
+				e[0] = mean_props["e"]
+
+
 		# Caso 1: Todas as bandas (rotational, continuum, vibrational-rotational)
 		if band == 'all':
-			v1, tau1 = broadband.transmitance_rot(
-				self.T[fatia],
-				self.u_rot[fatia]
-				)
-			v2, tau2 = broadband.transmitance_cont(
-				self.T[fatia],
-				self.u_cont[fatia],
-				self.p[fatia],
-				self.e[fatia]
-				)
+			v1, tau1 = broadband.transmitance_rot(Tn, u_rot)
+			v2, tau2 = broadband.transmitance_cont(Tn, u_cont, p, e)
 			v3, tau3 = broadband.transmitance_vib(
 				np.abs(self.u_vib[n2] - u_vib)
 				)
@@ -377,19 +412,11 @@ class CoolingRate(object):
 		
 		# Caso 2:
 		elif band == 'rot':
-			intervalos, transmitance = broadband.transmitance_rot(
-				self.T[fatia],
-				self.u_rot[fatia]
-				)
+			intervalos, transmitance = broadband.transmitance_rot(Tn, u_rot)
 
 		# Caso 3: 
 		elif band == 'cont':
-			intervalos, transmitance = broadband.transmitance_cont(
-				self.T[fatia],
-				self.u_cont[fatia],
-				self.p[fatia],
-				self.e[fatia]
-				)
+			intervalos, transmitance = broadband.transmitance_cont(Tn, u_cont, p, e)
 
 		# Caso 4:
 		elif band == 'vib':

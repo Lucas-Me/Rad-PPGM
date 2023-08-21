@@ -13,7 +13,7 @@ import numpy as np
 
 def integral(y, x):
 	'''
-	Calcula a derivada da função Y com relaçao a X, utilizando
+	Calcula a integral da função Y com relaçao a X, utilizando
 	o método trapezoidal. 
 
 	Entrada: Array
@@ -31,6 +31,56 @@ def integral(y, x):
 	# Somando as areas, equivale a integral.
 	return np.nansum(area)
 
+def non_linear_derivative(f, x):
+	'''
+	Calcula a derivada da função Y com relaçao a X, utilizando
+	o método de diferenca centradas em uma grade irregular.
+
+	Parameters
+	----------
+	x: array[float] - shape[N]
+		Pontos de grade x
+	f: array[float] - shape[N]
+		Pontos de grade em f
+	
+	Returns
+	-------
+		dfdx : array[float] - shape[N - 2]
+	'''
+	
+	dfdx = []
+	for i in range(1, f.shape[0] - 1):
+		dxi = x[i] - x[i - 1]
+		dxi_p1 = x[i + 1] - x[i]
+
+		dfdx.append((1 / dxi_p1 - 1 / (dxi_p1 + dxi)) * f[i + 1]
+		+ (1 / dxi - 1 / dxi_p1) * f[i]
+		+ (1 / (dxi + dxi_p1) - 1 / dxi) * f[i - 1])
+
+	return np.array(dfdx)
+
+def first_derivative(u, x):
+	'''
+	Calcula a derivada da função Y com relaçao a X, utilizando
+	uma mistura do metodo central, forward e backward.
+
+	Parameters
+	----------
+	x: array[float] - shape[N]
+		Pontos de grade x
+	u: array[float] - shape[N]
+		Pontos de grade em f
+	
+	Returns
+	-------
+		dudx : array[float] - shape[N]
+	'''
+	dudx = np.full(u.shape[0], np.nan)
+	dudx[1:-1] = non_linear_derivative(u, x)
+	dudx[0] = (u[1] - u[0]) / (x[1] - x[0])
+	dudx[-1] = (u[-1] - u[-2]) / (x[-1] - x[-2])
+
+	return dudx
 
 def saturation_vapor_pressure(T):
 	'''

@@ -61,6 +61,9 @@ class CoolingRate(object):
 		self.p = p
 		self.Qv = Qv
 
+		# Numero de niveis
+		self.nlevs = self.u.shape[0]
+
 		# Calcula parâmetros que serão utilizados, baseado nas variaveis acima
 		# ---------------------------------------------------------------------
 		# Pressão parcial do vapor na parcela de ar [Pa]
@@ -98,11 +101,11 @@ class CoolingRate(object):
 		# emissividade em cada nivel
 		Ef = [self._emissivity(
 			T_topo, 
-			n1 = i, # "U" em toda a coluna
-			n2 = self.u.shape[0] - 1,
+			n1 = self.u.shape[0] - 1, # "U" em toda a coluna
+			n2 = i,  
 			u_vib = self.u_vib[-1],
 			band = band
-			) for i in range(self.u.shape[0])]
+			) for i in range(self.nlevs)]
 		
 		# Derivada simples (u está em ordem crescente)
 		du = np.diff(self.u) #  [g / cm²]
@@ -136,26 +139,25 @@ class CoolingRate(object):
 
 			# loop para  a integral, da superfície até o topo da sondagem
 			for j in range(du.shape[0]):
-				# emissividade em cada nivel
-				Ef2 = self._emissivity(
+				# emissividade em cada nivel, mantendo T(u') cte
+				Eb2 = self._emissivity(
 					T_mean[j],
-					n1 = i + 1,
-					n2 = j,
+					n1 = j,
+					n2 = i + 1,
 					u_vib = u_vib_mean[j],
 					band = band
 					)
-				
-				Ef1 = self._emissivity(
+
+				Eb1 = self._emissivity(
 					T_mean[j],
-					n1 = i,
-					n2 = j,
+					n1 = j,
+					n2 = i,
 					u_vib = u_vib_mean[j],
 					band = band
 				)
 
 				# Derivada simples (u está em ordem crescente)
-				dEf = Ef2 - Ef1
-				dEfdu[j] = dEf / du[i]
+				dEfdu[j] = (Eb2 - Eb1) / du[i]
 
 			# Função a ser integrada
 			f = dEfdu * dsigma_t_4_du
@@ -184,9 +186,9 @@ class CoolingRate(object):
 		T : float
 		 	Temperatura do ar [K]
 		n1 : int
-			Indice que representa o nivel inicial da coluna atmosferica
+			Indice que representa o nivel de onda a emissao parte
 		n2 : int
-			Indice que representa o nivel final da coluna atmosferica.
+			Indice que representa o nivel para onde a emissao vai
 		u_vib : float
 			Termo do u corrigido para o vibracional em n2, ou o termo medio
 		band : str
@@ -204,8 +206,12 @@ class CoolingRate(object):
 		'''
 
 		# Parametros
-		step = 1 if n2 > n1 else -1
-		fatia = slice(n1, n2 + 1, step)
+		if n2 >= n1:
+			step = 1
+			fatia = slice(n1, n2 + 1, step)
+		else:
+			step = -1
+			fatia = slice(n1, n2 - self.nlevs + step, step)
 
 		# Caso 1: Todas as bandas (rotational, continuum, vibrational-rotational)
 		if band == 'all':
@@ -220,7 +226,7 @@ class CoolingRate(object):
 				self.e[fatia]
 				)
 			v3, tau3 = broadband.transmitance_vib(
-				np.abs(self.u_vib[n1] - u_vib)
+				np.abs(self.u_vib[n2] - u_vib)
 				)
 
 			intervalos = np.concatenate((v1, v2, v3)) # Intervalos de numero de onda
@@ -245,7 +251,7 @@ class CoolingRate(object):
 		# Caso 4:
 		elif band == 'vib':
 			intervalos, transmitance = broadband.transmitance_vib(
-				np.abs(self.u_vib[n1] - u_vib)
+				np.abs(self.u_vib[n2] - u_vib)
 				)
 		
 		else: # Lança um erro

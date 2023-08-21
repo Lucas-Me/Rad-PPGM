@@ -97,14 +97,18 @@ def path_length_rot(T, p, u):
 	T0 = 260 # [K]
 
 	# Função a ser integrada
+	# Tmean = (T[1:] + T[:-1]) / 2
+	# y = p[1:] / p[:-1] * np.exp(A_ * (Tmean - T0) + B_ * (Tmean - T0) ** 2)
 	y = p / 1013 * np.exp(A_ * (T - T0) + B_ * (T - T0) ** 2)
-	
+
 	# pedacos da integral (Metodo trapezoidal)
+	# integrate = np.diff(u) * y
 	integrate = np.diff(u) * (y[1:] + y[:-1]) / 2
 
 	# Inicializa um array vazio para armazenar os resultados
 	u_ajustado = np.zeros(u.shape, dtype = np.float64)
-	u_ajustado[1:] = np.cumsum(integrate)
+	for i in range(integrate.shape[0]):
+		u_ajustado[i + 1] = np.sum(integrate[:i + 1])
 
 	return u_ajustado
 
@@ -146,9 +150,9 @@ def transmitance_rot(T, u):
 	# S/s0
 	Sm = np.matmul((exp1[:, 1:] + exp1[:, :-1]) / 2, du)
 	Am = np.matmul((exp2[:, 1:] + exp2[:, :-1]) / 2, du)
-	
+
 	# Termo da transmitanica difusa
-	termo_raiz = (1 + 1.66 * Rw1 / Rw2 * Sm * Sm / Am)
+	termo_raiz = 1 + 1.66 * Rw1 / Rw2 * Sm * Sm / Am
 	expoente = 1.66 * Sm * Rw1 * np.power(termo_raiz, -0.5)
 	
 	# Calculo da transmitancia difusa
@@ -194,7 +198,8 @@ def path_length_cont(T, u, e):
 
 	# Inicializa um array vazio para armazenar os resultados
 	u_ajustado = np.zeros(u.shape, dtype = np.float64)
-	u_ajustado[1:] = np.cumsum(integrate)
+	for i in range(integrate.shape[0]):
+		u_ajustado[i + 1] = np.sum(integrate[:i + 1])
 
 	return u_ajustado
 
@@ -310,7 +315,8 @@ def path_length_vib(u, p):
 
 	# Resultados
 	u_ajustado = np.zeros(u.shape, dtype = np.float64)
-	u_ajustado[1:] = np.cumsum(integrate)
+	for i in range(integrate.shape[0]):
+		u_ajustado[i + 1] = np.sum(integrate[:i + 1])
 
 	return u_ajustado
 

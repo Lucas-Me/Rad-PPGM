@@ -44,14 +44,6 @@ def read_profile(file_path):
 	# Calcula o path length do vapor d'agua [g / cm²]
 	df['u'] = path_length(df['water_density'].values, df['hght'].values)
 	df['u'] = df['u'] * 1e-4 # converte de g / m² para g / cm²
-
-	# Calcula a umidade relativa
-	# -------------------------------
-	# Densidade do vapor d'agua na parcela SATURADA
-	df['relh'] = relative_humidty_from_density(
-		Qv = df['water_density'] * 1e-3, # converte de [g/m³] para [Kg/m³]
-		T =  df['temp']
-	)
 	
 	return df
 

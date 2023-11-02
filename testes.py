@@ -49,7 +49,7 @@ def read_profile(file_path):
 
 
 def figura(df):
-	fig, ax  = plt.subplots(figsize = (5, 9))
+	fig, ax  = plt.subplots(figsize = (5, 6))
 
 	ax.plot(df['cr_nc_all'], df['hght'] * 1e-3, linestyle = 'solid', color = 'k', label = 'total')
 	ax.plot(df['cr_nc_rot'], df['hght'] * 1e-3, linestyle =  'dashed', label = 'H20 Rotational')
@@ -85,10 +85,12 @@ if __name__ == '__main__':
 		Qv = df['water_density'].values * 1e-3 # [kg / m^3]
 	) # [K / day]
 
-	df['cr_nc_rot'] = modelo.clear_sky(band = 'rot')
-	df['cr_nc_cont'] = modelo.clear_sky(band = 'cont')
-	df['cr_nc_vib'] = modelo.clear_sky(band = 'vib')
-	df['cr_nc_all'] = modelo.clear_sky(band = 'all')
+	df['cr_nc_rot'] = modelo._clear_sky(band = 'rot')
+	df['cr_nc_cont'] = modelo._clear_sky(band = 'cont')
+	df['cr_nc_vib'] = modelo._clear_sky(band = 'vib')
+	df['cr_nc_all'] = modelo._clear_sky(band = 'all')
 
 	# print(df)
 	figura(df)
+
+	# print(modelo._clear_sky(band = 'all'))

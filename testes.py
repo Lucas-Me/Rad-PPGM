@@ -8,6 +8,7 @@
 # IMPORTS
 import pandas as pd
 import matplotlib.pyplot as plt
+import scipy.interpolate as interp
 
 # import locais
 from scripts.calc import *
@@ -90,7 +91,5 @@ if __name__ == '__main__':
 	df['cr_nc_vib'] = modelo._clear_sky(band = 'vib')
 	df['cr_nc_all'] = modelo._clear_sky(band = 'all')
 
-	# print(df)
+	# # print(df)
 	figura(df)
-
-	# print(modelo._clear_sky(band = 'all'))

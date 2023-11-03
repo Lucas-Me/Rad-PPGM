@@ -31,7 +31,7 @@ def integral(y, x):
 	# Somando as areas, equivale a integral.
 	return np.nansum(area)
 
-def non_linear_derivative(f, x):
+def non_linear_derivative(y, x):
 	'''
 	Calcula a derivada da função Y com relaçao a X, utilizando
 	o método de diferenca centradas em uma grade irregular.
@@ -40,26 +40,37 @@ def non_linear_derivative(f, x):
 	----------
 	x: array[float] - shape[N]
 		Pontos de grade x
-	f: array[float] - shape[N]
-		Pontos de grade em f
+	y: array[float] - shape[N]
+		Pontos de grade em y
 	
 	Returns
 	-------
-		dfdx : array[float] - shape[N - 2]
+		dydx : array[float] - shape[N - 2]
 	'''
 	
-	dfdx = []
-	for i in range(1, f.shape[0] - 1):
-		dxi = x[i] - x[i - 1]
-		dxi_p1 = x[i + 1] - x[i]
+	dydx = []
+	for i in range(1, y.shape[0] - 1):
+		# parametros
+		h_minus = x[i] - x[i - 1]
+		h_plus = x[i + 1] - x[i]
+		y_minus = y[i - 1]
+		y_0 = y[i]
+		y_plus = y[i + 1]
 
-		dfdx.append((1 / dxi_p1 - 1 / (dxi_p1 + dxi)) * f[i + 1]
-		+ (1 / dxi - 1 / dxi_p1) * f[i]
-		+ (1 / (dxi + dxi_p1) - 1 / dxi) * f[i - 1])
+		# calculando termos
+		# termo1 = h_minus / (h_plus + h_minus) * (y_plus - y_0) / h_plus
+		# termo2 = h_plus / (h_plus + h_minus) * (y_0 - y_minus) / h_minus
+		termo1 = h_plus / (h_plus + h_minus) * (y_plus - y_0) / h_plus
+		termo2 = h_minus / (h_plus + h_minus) * (y_0 - y_minus) / h_minus
 
-	return np.array(dfdx)
+		# armazena o resultado
+		result = termo1 + termo2
+		dydx.append(result)
 
-def first_derivative(u, x):
+	return np.array(dydx)
+
+
+def first_derivative(y, x):
 	'''
 	Calcula a derivada da função Y com relaçao a X, utilizando
 	uma mistura do metodo central, forward e backward.
@@ -68,19 +79,28 @@ def first_derivative(u, x):
 	----------
 	x: array[float] - shape[N]
 		Pontos de grade x
-	u: array[float] - shape[N]
+	y: array[float] - shape[N]
 		Pontos de grade em f
 	
 	Returns
 	-------
-		dudx : array[float] - shape[N]
+		dydx : array[float] - shape[N]
 	'''
-	dudx = np.full(u.shape[0], np.nan)
-	dudx[1:-1] = non_linear_derivative(u, x)
-	dudx[0] = (u[1] - u[0]) / (x[1] - x[0])
-	dudx[-1] = (u[-1] - u[-2]) / (x[-1] - x[-2])
 
-	return dudx
+	# inicializa a variavel
+	dydx = np.full(y.shape[0], np.nan)
+	
+	# Forward
+	dydx[0] = (y[1] - y[0]) / (x[1] - x[0])
+
+	# Backward
+	dydx[-1] = (y[-1] - y[-2]) / (x[-1] - x[-2])
+
+	# Method A - "Playing with nonuniform grids", Veldman & Rinzema (1992)
+	dydx[1:-1] = non_linear_derivative(y, x)
+
+	return dydx
+
 
 def saturation_vapor_pressure(T):
 	'''

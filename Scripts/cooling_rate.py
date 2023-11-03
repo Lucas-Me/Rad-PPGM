@@ -75,6 +75,13 @@ class CoolingRate(object):
 		self.u_cont = broadband.path_length_cont(T, self.u, self.e)
 		self.u_vib = broadband.path_length_vib(self.u, p)
 
+		# Derivadas importantes
+		# ---------------------------------------------------------------------
+		self.dSigmaT4du = calc.first_derivative(
+			calc.stefan_boltzmann(self.T), self.u)
+		print(self.dSigmaT4du)
+
+
 	def clear_sky(self, band : str  = 'all'):
 		'''
 		Taxa de resfriamento considerando um céu limpo, sem nuvens.
@@ -215,7 +222,7 @@ class CoolingRate(object):
 		downward_flux = np.full(self.nlevs, fill_value = np.nan)
 
 		# loop pra cada nível
-		for i in range(self.nlevs - 1): # ultimo nao incluso
+		for i in range(self.nlevs): # ultimo nao incluso
 			
 			# Fluxo ascendente
 			upward_flux[i] = self._upward_flux(i, band)
@@ -227,11 +234,8 @@ class CoolingRate(object):
 		Cpm = self.Cp * (1 + 0.9 * self.q)
 
 		# Taxa de resfriamento
-		diff = upward_flux - downward_flux
-		diff[:-1] = np.diff(diff)
-		du = self.u * 10 # [kg / m²]
-		du[:-1] = np.diff(du)
-		cooling_rate = - 1 * self.q / Cpm * (diff / du) # [K/s]
+		dfluxdu = calc.first_derivative(upward_flux - downward_flux, self.u * 10)
+		cooling_rate = - 1 * self.q / Cpm * dfluxdu # [K/s]
 
 		# converte a unidade para [K / day]
 		cooling_rate = cooling_rate * 3600 * 24
@@ -249,35 +253,45 @@ class CoolingRate(object):
 
 		# loop para a integral, da superfície até o nivel u em questao
 		for i in range(n):
+			
+			# MÉTODO 1
+			# ---------
+			# # Emissividade
+			# Ef = self._emissivity(
+			# 	n1 = i,
+			# 	n2 = n,
+			# 	band = band,
+			# 	mean = True
+			# 	)
 
-			# Emissividade
+			# # # Derivada de sigma_t_4_du
+			# dsigmaT4 = (calc.stefan_boltzmann(self.T[i + 1]) - calc.stefan_boltzmann(self.T[i]))
+			
+			# # Derivada simples (u está em ordem crescente)
+			# integrated_flux += Ef * dsigmaT4
+
+			# MÉTODO 2
+			# ---------
 			Ef1 = self._emissivity(
 				n1 = i + 1,
 				n2 = n,
-				band = band,
-				mean = True,
-				keep_path = True
-				)
-
+				band = band
+			)
 			Ef0 = self._emissivity(
 				n1 = i,
 				n2 = n,
-				band = band,
-				mean = True,
-				keep_path = True
+				band = band
 			)
 
-			# Derivada de sigma_t_4_du
-			dsigmaT4du_1 = (calc.stefan_boltzmann(self.T[i + 2]) - calc.stefan_boltzmann(self.T[i + 1])) / (self.u[i + 2] - self.u[i + 1])
-			dsigmaT4du_0 = (calc.stefan_boltzmann(self.T[i + 1]) - calc.stefan_boltzmann(self.T[i])) / (self.u[i + 1] - self.u[i])
-			
-			# Media nesta camada
-			f1 = Ef1 * dsigmaT4du_1
-			f0 = Ef0 * dsigmaT4du_0
-			fmean = (f1 + f0) / 2
-			
-			# Derivada simples (u está em ordem crescente)
-			integrated_flux += fmean * (self.u[i + 1] - self.u[i])
+			# Funcao
+			f1 = Ef1 * self.dSigmaT4du[i + 1]
+			f0 = Ef0 * self.dSigmaT4du[i]
+
+			# Valor medio da funcao
+			f_ = (f1 + f0) / 2
+
+			# adiciona o fluxo desta camada
+			integrated_flux += f_ * (self.u[i + 1] - self.u[i])
 
 		return integrated_flux + surf_flux
 	
@@ -298,34 +312,44 @@ class CoolingRate(object):
 
 		# loop para a integral, do topo até o nivel u em questao
 		for i in range(topo, n, -1):
+			
+			# Método 1
+			# --------
+			# # Emissividade
+			# Ef = self._emissivity(
+			# 	n1 = i,
+			# 	n2 = n,
+			# 	band = band,
+			# 	mean = True)
 
-			# Emissividade
+			# # Derivada de sigma_t_4_du
+			# dsigmaT4 = (calc.stefan_boltzmann(self.T[i - 1]) - calc.stefan_boltzmann(self.T[i]))
+			
+			# # Derivada simples (u está em ordem crescente)
+			# integrated_flux += Ef * dsigmaT4
+
+			# MÉTODO 2
+			# ---------
 			Ef1 = self._emissivity(
 				n1 = i - 1,
 				n2 = n,
-				band = band,
-				mean = True,
-				keep_path = True)
-
+				band = band
+			)
 			Ef0 = self._emissivity(
 				n1 = i,
 				n2 = n,
-				band = band,
-				mean = True,
-				keep_path = True)
+				band = band
+			)
 
-			# Derivada de sigma_t_4_du
-			dsigmaT4du_1 = (calc.stefan_boltzmann(self.T[i - 2]) - calc.stefan_boltzmann(self.T[i - 1])) / (self.u[i - 2] - self.u[i - 1])
-			dsigmaT4du_0 = (calc.stefan_boltzmann(self.T[i - 1]) - calc.stefan_boltzmann(self.T[i])) / (self.u[i - 1] - self.u[i])
-			
-			# Media nesta camada
-			f1 = Ef1 * dsigmaT4du_1
-			f0 = Ef0 * dsigmaT4du_0
-			fmean = (f1 + f0) / 2			
+			# Funcao
+			f1 = Ef1 * self.dSigmaT4du[i - 1]
+			f0 = Ef0 * self.dSigmaT4du[i]
 
-			# Derivada simples (u está em ordem crescente)
-			du = (self.u[i - 1] - self.u[i])
-			integrated_flux += fmean * du
+			# Valor medio da funcao
+			f_ = (f1 + f0) / 2
+
+			# adiciona o fluxo desta camada
+			integrated_flux += f_ * (self.u[i - 1] - self.u[i])
 
 		return integrated_flux + top_flux
 
@@ -417,7 +441,7 @@ class CoolingRate(object):
 			raise KeyError
 		
 		# Lei de Stefan-Boltzmann
-		steboltz = calc.stefan_boltzmann(Tn[0]) # J * m^-2 * s^-1
+		steboltz = calc.stefan_boltzmann(self.T[n1]) # J * m^-2 * s^-1
 
 		# transforma em m^-1 e converte para frequencia (1/s)
 		c = 3 * 1e8
@@ -427,7 +451,7 @@ class CoolingRate(object):
 
 		# Calcula a emissividade de cada intervalo da integral (freq) e soma
 		emissivity = np.nansum(
-			np.pi * calc.planck(fmean, Tn[0]) * (1 - transmitance) * df / steboltz
+			np.pi * calc.planck(fmean, self.T[n1]) * (1 - transmitance) * df / steboltz
 			)
 		
 		return emissivity

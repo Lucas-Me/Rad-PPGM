@@ -95,15 +95,17 @@ def path_length_rot(T, p, u):
 
 	# Temperatura inicial considerada na equação (22) de [1]
 	T0 = 260 # [K]
+	p0 = 1013 # [hPa]
 
 	# Função a ser integrada
-	# Tmean = (T[1:] + T[:-1]) / 2
-	# y = p[1:] / p[:-1] * np.exp(A_ * (Tmean - T0) + B_ * (Tmean - T0) ** 2)
-	y = p / 1013 * np.exp(A_ * (T - T0) + B_ * (T - T0) ** 2)
+	Tmean = (T[1:] + T[:-1]) / 2
+	pmean = (p[1:] + p[:-1]) / 2
+	y = pmean / p0 * np.exp(A_ * (Tmean - T0) + B_ * (Tmean - T0) ** 2)
+	integrate = np.diff(u) * y
 
 	# pedacos da integral (Metodo trapezoidal)
-	# integrate = np.diff(u) * y
-	integrate = np.diff(u) * (y[1:] + y[:-1]) / 2
+	# y = p / 1013 * np.exp(A_ * (T - T0) + B_ * (T - T0) ** 2)
+	# integrate = np.diff(u) * (y[1:] + y[:-1]) / 2
 
 	# Inicializa um array vazio para armazenar os resultados
 	u_ajustado = np.zeros(u.shape, dtype = np.float64)
@@ -139,17 +141,18 @@ def transmitance_rot(T, u):
 
 	# Curtis-Godson approximation
 	du = np.abs(np.diff(u))
+	Tmean = (T[1:] + T[:-1]) / 2
 	n = a.shape[0]
-	exp1 = np.exp(a.reshape((n, 1)) * (T - T0) + b.reshape((n, 1))  * (T - T0) ** 2)
-	exp2 = np.exp(a_.reshape((n, 1)) * (T - T0) + b_.reshape((n, 1))  * (T - T0) ** 2)
+	exp1 = np.exp(a.reshape((n, 1)) * (Tmean - T0) + b.reshape((n, 1))  * (Tmean - T0) ** 2)
+	exp2 = np.exp(a_.reshape((n, 1)) * (Tmean - T0) + b_.reshape((n, 1))  * (Tmean - T0) ** 2)
 
 	# Se du = 0, transmitancia é 1.
 	if du.shape[0] == 0 or np.sum(du) == 0:
 		return (intervalos, np.ones(n))
 
 	# S/s0
-	Sm = np.matmul((exp1[:, 1:] + exp1[:, :-1]) / 2, du)
-	Am = np.matmul((exp2[:, 1:] + exp2[:, :-1]) / 2, du)
+	Sm = np.matmul(exp1, du)
+	Am = np.matmul(exp2, du)
 
 	# Termo da transmitanica difusa
 	termo_raiz = 1 + 1.66 * Rw1 / Rw2 * Sm * Sm / Am

@@ -117,6 +117,7 @@ class CoolingRate(object):
 		Cpm = self.Cp * (1 + 0.9 * self.q)
 
 		# Taxa de resfriamento
+		# ---------------------
 		dfluxdu = calc.first_derivative(upward_flux - downward_flux, self.u * 10)
 		cooling_rate = - 1 * self.q / Cpm * dfluxdu # [K/s]
 
@@ -182,7 +183,7 @@ class CoolingRate(object):
 
 			# Fluxo ascendente, checa se este nível está acima da nuvem
 			if i > Nct:
-				upward_flux[i] = self._cloud_downward_flux(i, band)
+				upward_flux[i] = self._cloud_upward_flux(i, band)
 			else:
 				upward_flux[i] = self._upward_flux(i, band)
 
@@ -192,12 +193,23 @@ class CoolingRate(object):
 			else:
 
 				downward_flux[i] = self._downward_flux(i, band)
-	
+
 		# Cp do ar umido [J * Kg^-1 * K^-1]
 		Cpm = self.Cp * (1 + 0.9 * self.q)
 
 		# Taxa de resfriamento
-		dfluxdu = calc.first_derivative(upward_flux - downward_flux, self.u * 10)
+		# ---------------------
+		diff = upward_flux - downward_flux
+		u_ = self.u * 10
+		dfluxdu = np.full(upward_flux.shape, fill_value= np.nan)
+		
+		# Niveis abaixo da nuvem
+		dfluxdu[:self._Ncb] = calc.first_derivative(diff[:self._Ncb], u_[:self._Ncb])
+
+		# Niveis acima da nuvem
+		dfluxdu[self._Nct + 1:] = calc.first_derivative(diff[self._Nct + 1:], u_[self._Nct + 1:])
+
+		# taxa
 		cooling_rate = - 1 * self.q / Cpm * dfluxdu # [K/s]
 
 		# converte a unidade para [K / day]
@@ -286,7 +298,89 @@ class CoolingRate(object):
 		return integrated_flux + top_flux
 
 	def _cloud_upward_flux(self, n, band):
-		pass
+		# INTEGRAL
+		# Fluxo que desce pela emissão de niveis acima da nuvem, que reflete no topo da nuvem e volta para o nivel n
+		# ----------------------------------------------------------------------------
+		fluxo_1 = 0 # inicializa como zero e vai somando
+
+		# loop da integral, do nível TOPO até Nct
+		topo = self.nlevs - 1
+		for i in range(topo, self._Ncb, -1):
+
+			# MÉTODO 1
+			# ---------
+			irradiancia = calc.stefan_boltzmann(
+				(self.T[i - 1] + self.T[i]) / 2
+			)
+			
+			# transmitancia do nivel i até bater na nuvem e refletir até o nivel N
+			t1 =  self._transmitance_leap([i, self._Nct, self._Nct, n], band)
+
+			# transmitancia do nivel i + 1 até bater na nuvem e refletir até o nivel N
+			t2 =  self._transmitance_leap([i - 1, self._Nct, self._Nct, n], band)
+			
+			# adiciona o fluxo desta camada
+			fluxo_1 += irradiancia * (t2 - t1)
+
+		# Fluxo da superficie, que passa pela nuvem e chega em N
+		# na base da nuvem e volta pra n
+		# ---------------------------------------------------------------------------------------
+		fluxo_2 = calc.stefan_boltzmann(self.T[0]) * self._transmitance_leap([0, self._Ncb, self._Nct, n], band)
+		
+		# INTEGRAL
+		# Fluxo pela emissão dos níveis abaixo da nuvem, transmitido através da nuvem e chega em n
+		# ---------------------------------------------------------------------------
+		fluxo_3 = 0 # inicializa como zero e vai somando
+		
+		# loop da integral, da sup até a base da nuvem
+		for i in range(0, self._Ncb):
+
+			# MÉTODO 1
+			# ---------
+			irradiancia = calc.stefan_boltzmann(
+				(self.T[i + 1] + self.T[i]) / 2
+			)
+			
+			# transmitancia do nivel i até passar pela nuvem e chegar ao nivel N
+			t1 =  self._transmitance_leap([i, self._Ncb, self._Nct, n], band)
+
+			# ttransmitancia do nivel i + 1 até passar pela nuvem e chegar ao nivel N
+			t2 =  self._transmitance_leap([i + 1, self._Ncb, self._Nct, n], band)
+			
+			# adiciona o fluxo desta camada
+			fluxo_3 += irradiancia * (t2 - t1)
+
+		# Fluxo devido a emissão do topo da nuvem
+		# ---------------------------------------------------------------------------
+		fluxo_4 = self._Ect * (1 - self._emissivity(self._Nct, n, band)) * calc.stefan_boltzmann(self.T[self._Nct])
+
+		# INTEGRAL
+		# Fluxo ascendente das camadas entre o topo da nuvem e o nivel n
+		# ----------------------------------------------------------------
+		fluxo_5 = 0 # inicializa como zero e vai somando
+
+		# loop da integral, da topo da nuvem até n
+		for i in range(self._Nct, n):
+
+			# MÉTODO 1
+			# ---------
+			irradiancia = calc.stefan_boltzmann(
+				(self.T[i + 1] + self.T[i]) / 2
+			)
+			
+			# transmitancia do nivel i até passar pela nuvem e chegar ao nivel N
+			t1 =  1 - self._emissivity(i, n, band)
+
+			# ttransmitancia do nivel i - 1 até passar pela nuvem e chegar ao nivel N
+			t2 =  1 - self._emissivity(i + 1, n, band)
+			
+			# adiciona o fluxo desta camada
+			fluxo_5 += irradiancia * (t2 - t1)
+
+		# Resultado final
+		upward_flux = self._Rc * fluxo_1 + self._Tc * (fluxo_2 + fluxo_3) + fluxo_4 + fluxo_5
+
+		return upward_flux
 
 	def _cloud_downward_flux(self, n, band):
 		# Fluxo da superfície que é refletida na base da nuvem e volta para o nível i
@@ -319,10 +413,10 @@ class CoolingRate(object):
 
 		# INTEGRAL
 		# Fluxo pela emissão dos níveis acima da nuvem, transmitido através da nuvem
-		# ---------------------------------------------------------------------------------------
+		# ---------------------------------------------------------------------------
 		fluxo_3 = 0 # inicializa como zero e vai somando
 		
-		# loop da integral, do nível 0 até Ncb
+		# loop da integral, do topo até Nct
 		topo = self.nlevs - 1
 		for i in range(topo, self._Nct, -1):
 
@@ -341,7 +435,37 @@ class CoolingRate(object):
 			# adiciona o fluxo desta camada
 			fluxo_3 += irradiancia * (t2 - t1)
 
-		pass
+		# Fluxo devido a emissão da base da nuvem para baixo.
+		# ---------------------------------------------------------------------------
+		fluxo_4 = self._Ecb * (1 - self._emissivity(self._Ncb, n, band)) * calc.stefan_boltzmann(self.T[self._Ncb])
+
+		# INTEGRAL
+		# Fluxo descendente das camadas entre a base da nuvem e o nivel n
+		# ----------------------------------------------------------------
+		fluxo_5 = 0 # inicializa como zero e vai somando
+
+		# loop da integral, da base até n
+		for i in range(self._Ncb, n, -1):
+
+			# MÉTODO 1
+			# ---------
+			irradiancia = calc.stefan_boltzmann(
+				(self.T[i - 1] + self.T[i]) / 2
+			)
+			
+			# transmitancia do nivel i até passar pela nuvem e chegar ao nivel N
+			t1 =  1 - self._emissivity(i, n, band)
+
+			# ttransmitancia do nivel i - 1 até passar pela nuvem e chegar ao nivel N
+			t2 =  1 - self._emissivity(i - 1, n, band)
+			
+			# adiciona o fluxo desta camada
+			fluxo_5 += irradiancia * (t2 - t1)
+
+		# Resultado final
+		downward_flux = self._Rc * (fluxo_1 + fluxo_2) + self._Tc * fluxo_3 + fluxo_4 + fluxo_5
+
+		return downward_flux
 
 	def _emissivity(self, n1, n2, band : str = 'all', mean = False, keep_path =False):
 		'''
@@ -408,7 +532,7 @@ class CoolingRate(object):
 		)
 
 		# Calcula a emissividade em todo o espectro
-		result = 1 - self._broadband_emissivity(
+		result = self._broadband_emissivity(
 			self.T[n1], intervalos, transmitance
 		)
 		
@@ -450,11 +574,11 @@ class CoolingRate(object):
 				fatia = slice(levels[i*2], levels[i*2 + 1] - self.nlevs, step)
 
 			# variaveis
-			Tn = np.concatenate(self.T[fatia].copy()) 
-			u_rot = np.concatenate(self.u_rot[fatia].copy())
-			u_cont = np.concatenate(self.u_cont[fatia].copy())
-			p = np.concatenate(self.p[fatia].copy())
-			e = np.concatenate(self.e[fatia].copy())
+			Tn = self.T[fatia].copy()
+			u_rot = self.u_rot[fatia].copy()
+			u_cont = self.u_cont[fatia].copy()
+			p = self.p[fatia].copy()
+			e = self.e[fatia].copy()
 			du_vib = self.u_vib[i*2 + 1] - self.u_vib[i*2]
 
 			# Funcao de transmissão difusa
@@ -475,7 +599,7 @@ class CoolingRate(object):
 		
 		return result
 	
-	def _diffuse_transmission_function(band, T, p, e, u_rot, u_cont, du_vib):
+	def _diffuse_transmission_function(self, band, T, p, e, u_rot, u_cont, du_vib):
 		'''
 		Calcula a transmitancia difusa para cada banda do espectro, dado o caminho optico
 		e as propriedades atmosférias em cada parte do caminho.
@@ -536,7 +660,7 @@ class CoolingRate(object):
 		
 		return intervalos, transmitance
 	
-	def _broadband_emissivity(T, intervalos, transmitance):
+	def _broadband_emissivity(self, T, intervalos, transmitance):
 		'''
 		Calcula a transmitancia difusa para cada banda do espectro, dado o caminho optico
 		e as propriedades atmosférias em cada parte do caminho.

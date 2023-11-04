@@ -74,6 +74,27 @@ def figura(df):
 
 	plt.show()
 
+def figura_nuvem(df):
+	fig, ax  = plt.subplots(figsize = (5, 6))
+
+	ax.plot(df['cr_cloud_all'], df['hght'] * 1e-3, '--o', color = 'k', label = 'Nuvem 1km')
+	ax.plot(df['cr_nc_all'], df['hght'] * 1e-3, '--', color = 'goldenrod', label = 'Céu limpo')
+
+	# Eixo Y
+	ax.set_ylim(0, 40)
+	ax.set_yticks([0, 5, 10, 20, 30, 40])
+
+	# Eixo X
+	ax.set_xticks(np.arange(-20, 20, 1))
+	ax.set_xlim(-7, 2)
+
+	# Textos
+	ax.set_ylabel("Altitude (Km)")
+	ax.set_xlabel("Cooling rate (K / day)")
+
+	plt.legend()
+	plt.show()
+
 
 if __name__ == '__main__':
 	df = read_profile(r".\Dados\tropical.csv")
@@ -86,10 +107,17 @@ if __name__ == '__main__':
 		Qv = df['water_density'].values * 1e-3 # [kg / m^3]
 	) # [K / day]
 
-	df['cr_nc_rot'] = modelo.clear_sky(band = 'rot')
-	df['cr_nc_cont'] = modelo.clear_sky(band = 'cont')
-	df['cr_nc_vib'] = modelo.clear_sky(band = 'vib')
-	df['cr_nc_all'] = modelo.clear_sky(band = 'all')
+	# df['cr_nc_rot'] = modelo.clear_sky(band = 'rot')
+	# df['cr_nc_cont'] = modelo.clear_sky(band = 'cont')
+	# df['cr_nc_vib'] = modelo.clear_sky(band = 'vib')
+	# df['cr_nc_all'] = modelo.clear_sky(band = 'all')
 
-	# # print(df)
-	figura(df)
+	# # # print(df)
+	# figura(df)
+	df['cr_nc_all'] = modelo.clear_sky(band = 'all')
+	df['cr_cloud_all'] = modelo.cloudy_atmosphere(
+		band = 'all',
+		Ecb = 0.9876, Ect = 0.9876, Rc = 0.2401, Tc = 0,
+		Ncb = 8, Nct= 10
+	)
+	figura_nuvem(df)

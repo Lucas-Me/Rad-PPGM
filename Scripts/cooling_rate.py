@@ -79,125 +79,8 @@ class CoolingRate(object):
 		# ---------------------------------------------------------------------
 		self.dSigmaT4du = calc.first_derivative(
 			calc.stefan_boltzmann(self.T), self.u)
-		print(self.dSigmaT4du)
-
 
 	def clear_sky(self, band : str  = 'all'):
-		'''
-		Taxa de resfriamento considerando um céu limpo, sem nuvens.
-
-		Parameters
-		----------
-		band : str
-			Especifica a banda de absorcao a ser considerada, default = todas.
-			Opcoes disponiveis são:
-			- 'all' : todas as bandas
-			- 'rot' : apenas a banda do rotacional.
-			- 'cont' : apenas a banda do continuum.
-			- 'vib' : apenas a banda do vibracional-rotacional.
-
-		Returns
-		-------
-		cooling_rate : array[float]
-			Taxa de resfriamento [Kelvin / dia]
-		'''
-
-		# Termo 1: Sigma T^4 * dEf(u1 - u, T1)/du 
-		# -------------------------------------------
-		T_topo = self.T[-1] # "-1" indica no topo da atmosfera
-
-		# emissividade em cada nivel
-		Ef = np.array([self._emissivity(
-			T_topo, 
-			n1 = self.u.shape[0] - 1, # "U" em toda a coluna
-			n2 = i,  
-			u_vib = self.u_vib[-1],
-			band = band
-			) for i in range(self.nlevs)])
-		
-		# Derivada simples (u está em ordem crescente)
-		# dEf1du = calc.first_derivative(Ef, self.u)
-		du = np.diff(self.u) #  [g / cm²]
-		dEf1du = np.diff(Ef) / du
-		dEf1du = np.append(dEf1du, np.nan)
-
-		# Resultado do termo 1
-		termo1 = -1 * calc.stefan_boltzmann(T_topo) * dEf1du
-		termo1 = termo1 / 10 # corrigindo unidade para [J * s^-1 * Kg^-1]
-
-		# Termo 2: Integral
-		# -------------------------------------------
-
-		# inicializa o termo
-		termo2 = np.full(self.u.shape, fill_value=np.nan, dtype = np.float64)
-
-		# termos medios
-		u_mean = (self.u[:-1] + self.u[1:]) / 2
-		T_mean = np.interp(u_mean, self.u, self.T)
-		u_vib_mean = np.interp(u_mean, self.u, self.u_vib)
-		u_rot_mean = np.interp(u_mean, self.u, self.u_rot)
-		u_cont_mean = np.interp(u_mean, self.u, self.u_cont)
-		p_mean = np.interp(u_mean, self.u, self.p)
-		e_mean = np.interp(u_mean, self.u, self.e)
-
-		# d(Sigma * T(u')^4)/du'
-		# dsigma_t_4_du = calc.first_derivative(calc.stefan_boltzmann(self.T), self.u)
-		dsigma_t_4_du = np.diff(calc.stefan_boltzmann(self.T)) / du
-
-		# loop para cada nível da sondagem
-		for i in range(termo2.shape[0] - 1): # ultimo nao incluso
-			
-			# Função a ser integrada
-			dEfdu = np.full(self.nlevs - 1, fill_value = np.nan)
-
-			# loop para  a integral, da superfície até o topo da sondagem
-			for j in range(self.nlevs - 1):
-				# Termos medios
-				mean_props = dict(
-					T = T_mean[j],
-					u_rot = u_rot_mean[j],
-					u_cont = u_cont_mean[j],
-					p = p_mean[j],
-					e = e_mean[j]
-				)
-
-				# Emissivade até este nivel
-				E1 = self._emissivity(
-					T_mean[j],
-					n1 = j,
-					n2 = i + 1,
-					u_vib = u_vib_mean[j],
-					band = band,
-					mean_props = mean_props
-					)
-
-				E0 = self._emissivity(
-					T_mean[j],
-					n1 = j,
-					n2 = i,
-					u_vib = u_vib_mean[j],
-					band = band,
-					mean_props = mean_props
-					)
-				
-				dEfdu[j] = (E1 - E0) / (self.u[i + 1] - self.u[0])
-					
-			# Função a ser integrada
-			termo2[i] = np.nansum(dEfdu * dsigma_t_4_du * du) / 10 # Conserta a unidade
-
-		# Cp do ar umido  [J * Kg^-1 * K^-1]
-		Cpm = self.Cp * (1 + 0.9 * self.q)
-
-		# Taxa de resfriamento
-		cooling_rate = -1 * (termo1 + termo2) * self.q / Cpm # [K/s]
-
-		# converte a unidade para [K / day]
-		cooling_rate = cooling_rate * 3600 * 24
-
-		return cooling_rate
-	
-
-	def _clear_sky(self, band : str  = 'all'):
 		'''
 		Taxa de resfriamento considerando um céu limpo, sem nuvens.
 
@@ -242,6 +125,86 @@ class CoolingRate(object):
 
 		return cooling_rate
 	
+	def cloudy_atmosphere(self, band : str, Ect : float, Ecb : float, Tc : float, Rc : float, Nct : int, Ncb : int):
+		'''
+		Taxa de resfriamento considerando um céu com nuvem.
+
+		Parameters
+		----------
+		band : str
+			Especifica a banda de absorcao a ser considerada, default = todas.
+			Opcoes disponiveis são:
+			- 'all' : todas as bandas
+			- 'rot' : apenas a banda do rotacional.
+			- 'cont' : apenas a banda do continuum.
+			- 'vib' : apenas a banda do vibracional-rotacional.
+
+		Ect : float
+			Emissividade do topo da nuvem, no intervalo [0, 1].
+
+		Ecb : float
+			Emissividade da base da nuvem, no intervalo [0, 1].
+
+		Tc : float
+			Transmissividade da nuvem, no intervalo [0, 1].
+
+		Rc : float
+			refletividade da nuvem, no intervalo [0, 1].
+
+		Ncb : int
+			índice que representa o nível da base da nuvem na sondagem.
+		
+		Nct : int
+			índice que representa o nível do topo da nuvem na sondagem.
+
+		Returns
+		-------
+		cooling_rate : array[float]
+			Taxa de resfriamento [Kelvin / dia]
+		'''
+		# variaveis privadas
+		self._Ect = Ect
+		self._Ecb = Ecb
+		self._Tc = Tc
+		self._Rc = Rc
+		self._Ncb = Ncb
+		self._Nct = Nct
+
+		# Inicializa a integral [J * m^-2 * s^-1]
+		upward_flux = np.full(self.nlevs, fill_value=np.nan)
+		downward_flux = np.full(self.nlevs, fill_value = np.nan)
+
+		# loop pra cada nível
+		for i in range(self.nlevs): # ultimo nao incluso
+			# Verifica se este nível é a nuvem
+			if i >= Ncb and i <= Nct:
+				continue
+
+			# Fluxo ascendente, checa se este nível está acima da nuvem
+			if i > Nct:
+				upward_flux[i] = self._cloud_downward_flux(i, band)
+			else:
+				upward_flux[i] = self._upward_flux(i, band)
+
+			# Fluxo descendente, checa se este nível está abaixo da nuvem
+			if i < Ncb :
+				downward_flux[i] = self._cloud_downward_flux(i, band)
+			else:
+
+				downward_flux[i] = self._downward_flux(i, band)
+	
+		# Cp do ar umido [J * Kg^-1 * K^-1]
+		Cpm = self.Cp * (1 + 0.9 * self.q)
+
+		# Taxa de resfriamento
+		dfluxdu = calc.first_derivative(upward_flux - downward_flux, self.u * 10)
+		cooling_rate = - 1 * self.q / Cpm * dfluxdu # [K/s]
+
+		# converte a unidade para [K / day]
+		cooling_rate = cooling_rate * 3600 * 24
+
+		return cooling_rate
+
 
 	def _upward_flux(self, n, band):
 
@@ -253,22 +216,6 @@ class CoolingRate(object):
 
 		# loop para a integral, da superfície até o nivel u em questao
 		for i in range(n):
-			
-			# MÉTODO 1
-			# ---------
-			# # Emissividade
-			# Ef = self._emissivity(
-			# 	n1 = i,
-			# 	n2 = n,
-			# 	band = band,
-			# 	mean = True
-			# 	)
-
-			# # # Derivada de sigma_t_4_du
-			# dsigmaT4 = (calc.stefan_boltzmann(self.T[i + 1]) - calc.stefan_boltzmann(self.T[i]))
-			
-			# # Derivada simples (u está em ordem crescente)
-			# integrated_flux += Ef * dsigmaT4
 
 			# MÉTODO 2
 			# ---------
@@ -313,21 +260,6 @@ class CoolingRate(object):
 		# loop para a integral, do topo até o nivel u em questao
 		for i in range(topo, n, -1):
 			
-			# Método 1
-			# --------
-			# # Emissividade
-			# Ef = self._emissivity(
-			# 	n1 = i,
-			# 	n2 = n,
-			# 	band = band,
-			# 	mean = True)
-
-			# # Derivada de sigma_t_4_du
-			# dsigmaT4 = (calc.stefan_boltzmann(self.T[i - 1]) - calc.stefan_boltzmann(self.T[i]))
-			
-			# # Derivada simples (u está em ordem crescente)
-			# integrated_flux += Ef * dsigmaT4
-
 			# MÉTODO 2
 			# ---------
 			Ef1 = self._emissivity(
@@ -353,6 +285,63 @@ class CoolingRate(object):
 
 		return integrated_flux + top_flux
 
+	def _cloud_upward_flux(self, n, band):
+		pass
+
+	def _cloud_downward_flux(self, n, band):
+		# Fluxo da superfície que é refletida na base da nuvem e volta para o nível i
+		# ----------------------------------------------------------------------------
+		fluxo_1 = calc.stefan_boltzmann(self.T[0]) * self._transmitance_leap([0, self._Ncb, self._Ncb, n], band)
+
+		# INTEGRAL
+		# Fluxo pela emissão dos demais níveis abaixo da nuvem, que é refletida
+		# na base da nuvem e volta pra n
+		# ---------------------------------------------------------------------------------------
+		fluxo_2 = 0 # inicializa como zero e vai somando
+		
+		# loop da integral, do nível 0 até Ncb
+		for i in range(self._Ncb):
+
+			# MÉTODO 1
+			# ---------
+			irradiancia = calc.stefan_boltzmann(
+				(self.T[i + 1] + self.T[i]) / 2
+			)
+			
+			# transmitancia do nivel i até bater na nuvem e refletir até o nivel N
+			t1 =  self._transmitance_leap([i, self._Ncb, self._Ncb, n], band)
+
+			# transmitancia do nivel i + 1 até bater na nuvem e refletir até o nivel N
+			t2 =  self._transmitance_leap([i + 1, self._Ncb, self._Ncb, n], band)
+			
+			# adiciona o fluxo desta camada
+			fluxo_2 += irradiancia * (t2 - t1)
+
+		# INTEGRAL
+		# Fluxo pela emissão dos níveis acima da nuvem, transmitido através da nuvem
+		# ---------------------------------------------------------------------------------------
+		fluxo_3 = 0 # inicializa como zero e vai somando
+		
+		# loop da integral, do nível 0 até Ncb
+		topo = self.nlevs - 1
+		for i in range(topo, self._Nct, -1):
+
+			# MÉTODO 1
+			# ---------
+			irradiancia = calc.stefan_boltzmann(
+				(self.T[i - 1] + self.T[i]) / 2
+			)
+			
+			# transmitancia do nivel i até passar pela nuvem e chegar ao nivel N
+			t1 =  self._transmitance_leap([i, self._Nct, self._Ncb, n], band)
+
+			# ttransmitancia do nivel i - 1 até passar pela nuvem e chegar ao nivel N
+			t2 =  self._transmitance_leap([i - 1, self._Nct, self._Ncb, n], band)
+			
+			# adiciona o fluxo desta camada
+			fluxo_3 += irradiancia * (t2 - t1)
+
+		pass
 
 	def _emissivity(self, n1, n2, band : str = 'all', mean = False, keep_path =False):
 		'''
@@ -412,36 +401,162 @@ class CoolingRate(object):
 				u_cont[0] = (self.u_cont[n1] + self.u_cont[n1 + step]) / 2
 				u_vib = (self.u_vib[n1] + self.u_vib[n1 + step]) / 2
 
+		# Funcao de transmissão difusa
+		du_vib = self.u_vib[n2] - u_vib
+		intervalos, transmitance = self._diffuse_transmission_function(
+			band, Tn, p, e, u_rot, u_cont, du_vib
+		)
+
+		# Calcula a emissividade em todo o espectro
+		result = 1 - self._broadband_emissivity(
+			self.T[n1], intervalos, transmitance
+		)
+		
+		return result
+		
+	def _transmitance_leap(self, levels, band : str = 'all'):
+		'''
+		Calcula a transmitancia broadband, considerando todas as bandas ou apenas
+		a banda de absorcao especificada pelo usuario.
+		Considera o path length do nivel inicial (base) ate um outro nivel final
+		da camada atmosferica.
+
+		Parameters
+		----------
+		levels : list[int]
+			Lista de indices que representam os niveis por onde a emissao passa
+		band : str
+			Especifica a banda de absorcao a ser considerada, default = todas.
+			Opcoes disponiveis são:
+			- 'all' : todas as bandas
+			- 'rot' : apenas a banda do rotacional.
+			- 'cont' : apenas a banda do continuum.
+			- 'vib' : apenas a banda do vibracional-rotacional.
+
+		Returns
+		-------
+		transmitance: float
+			Transmitancia broadband [adimensional]
+		'''
+
+		transmitances = []
+		for i in range(2):
+			# step define se o fluxo é ascendente ou descendente.
+			if levels[i*2 + 1] > levels[i*2]:
+				step = 1
+				fatia = slice(levels[i*2], levels[i*2 + 1], step)
+			else: # fluxo decrescente
+				step = -1
+				fatia = slice(levels[i*2], levels[i*2 + 1] - self.nlevs, step)
+
+			# variaveis
+			Tn = np.concatenate(self.T[fatia].copy()) 
+			u_rot = np.concatenate(self.u_rot[fatia].copy())
+			u_cont = np.concatenate(self.u_cont[fatia].copy())
+			p = np.concatenate(self.p[fatia].copy())
+			e = np.concatenate(self.e[fatia].copy())
+			du_vib = self.u_vib[i*2 + 1] - self.u_vib[i*2]
+
+			# Funcao de transmissão difusa
+			intervalos, tr = self._diffuse_transmission_function(
+				band, Tn, p, e, u_rot, u_cont, du_vib
+			)
+
+			# Coloca na lista
+			transmitances.append(tr)
+
+		# junta as transmitancias da primeira e segunda trajetorias
+		transmitance = transmitances[1] * transmitances[0]
+
+		# Calcula a transmitacia (1 - emissividade) em todo o espectro
+		result = 1 - self._broadband_emissivity(
+			self.T[levels[0]], intervalos, transmitance
+		)
+		
+		return result
+	
+	def _diffuse_transmission_function(band, T, p, e, u_rot, u_cont, du_vib):
+		'''
+		Calcula a transmitancia difusa para cada banda do espectro, dado o caminho optico
+		e as propriedades atmosférias em cada parte do caminho.
+
+		Parameters
+		----------
+		band : str
+			Especifica a banda de absorcao a ser considerada, default = todas.
+			Opcoes disponiveis são:
+			- 'all' : todas as bandas
+			- 'rot' : apenas a banda do rotacional.
+			- 'cont' : apenas a banda do continuum.
+			- 'vib' : apenas a banda do vibracional-rotacional.
+		T : Array[float]
+			A temperatura do ar [K] em cada nivel u
+		p : Array[float]
+			Pressão atmosférica [hPa] em cada nivel u
+		e : Array[float]
+			Pressão do vapor d'água [hPa] em cada nivel u
+		u_rot : Array[float]
+			Path Length [g / cm²] corrigido no rotacional
+		u_cont : Array[float]
+			Path Length [g / cm²] corrigido no continuum
+		du_vib : float
+			Path Length [g / cm²] total corrigido no vibracional-rotacional
+
+		Returns
+		-------
+		intervalos: array[float]
+			Intervalos de numero de onda, ou frequencia, para cada banda do espectro
+		transmitance: array[float]
+			Transmitancia difusa [adimensional] para cada banda do espectro
+		'''
+
 		# Caso 1: Todas as bandas (rotational, continuum, vibrational-rotational)
 		if band == 'all':
-			v1, tau1 = broadband.transmitance_rot(Tn, u_rot)
-			v2, tau2 = broadband.transmitance_cont(Tn, u_cont, p, e)
-			v3, tau3 = broadband.transmitance_vib(
-				np.abs(self.u_vib[n2] - u_vib)
-				)
+			v1, tau1 = broadband.transmitance_rot(T, u_rot)
+			v2, tau2 = broadband.transmitance_cont(T, u_cont, p, e)
+			v3, tau3 = broadband.transmitance_vib(np.abs(du_vib))
 
 			intervalos = np.concatenate((v1, v2, v3)) # Intervalos de numero de onda
 			transmitance = np.concatenate((tau1, tau2, tau3)) # Transmitancia em cada intervalo
 		
 		# Caso 2:
 		elif band == 'rot':
-			intervalos, transmitance = broadband.transmitance_rot(Tn, u_rot)
+			intervalos, transmitance = broadband.transmitance_rot(T, u_rot)
 
 		# Caso 3: 
 		elif band == 'cont':
-			intervalos, transmitance = broadband.transmitance_cont(Tn, u_cont, p, e)
+			intervalos, transmitance = broadband.transmitance_cont(T, u_cont, p, e)
 
 		# Caso 4:
 		elif band == 'vib':
-			intervalos, transmitance = broadband.transmitance_vib(
-				np.abs(self.u_vib[n2] - u_vib)
-				)
+			intervalos, transmitance = broadband.transmitance_vib(du_vib)
 		
 		else: # Lança um erro
 			raise KeyError
 		
+		return intervalos, transmitance
+	
+	def _broadband_emissivity(T, intervalos, transmitance):
+		'''
+		Calcula a transmitancia difusa para cada banda do espectro, dado o caminho optico
+		e as propriedades atmosférias em cada parte do caminho.
+
+		Parameters
+		----------
+		T : Array[float]
+			A temperatura do ar [K] da fonte emissora
+		intervalos: array[float]
+			Intervalos de numero de onda, ou frequencia, para cada banda do espectro
+		transmitance: array[float]
+			Transmitancia difusa [adimensional] para cada banda do espectro
+
+		Returns
+		-------
+		emissivity : float
+			Emissividade broadband [adimensional]
+		'''
 		# Lei de Stefan-Boltzmann
-		steboltz = calc.stefan_boltzmann(self.T[n1]) # J * m^-2 * s^-1
+		steboltz = calc.stefan_boltzmann(T) # J * m^-2 * s^-1
 
 		# transforma em m^-1 e converte para frequencia (1/s)
 		c = 3 * 1e8
@@ -451,7 +566,7 @@ class CoolingRate(object):
 
 		# Calcula a emissividade de cada intervalo da integral (freq) e soma
 		emissivity = np.nansum(
-			np.pi * calc.planck(fmean, self.T[n1]) * (1 - transmitance) * df / steboltz
+			np.pi * calc.planck(fmean, T) * (1 - transmitance) * df / steboltz
 			)
 		
 		return emissivity

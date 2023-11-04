@@ -86,10 +86,10 @@ if __name__ == '__main__':
 		Qv = df['water_density'].values * 1e-3 # [kg / m^3]
 	) # [K / day]
 
-	df['cr_nc_rot'] = modelo._clear_sky(band = 'rot')
-	df['cr_nc_cont'] = modelo._clear_sky(band = 'cont')
-	df['cr_nc_vib'] = modelo._clear_sky(band = 'vib')
-	df['cr_nc_all'] = modelo._clear_sky(band = 'all')
+	df['cr_nc_rot'] = modelo.clear_sky(band = 'rot')
+	df['cr_nc_cont'] = modelo.clear_sky(band = 'cont')
+	df['cr_nc_vib'] = modelo.clear_sky(band = 'vib')
+	df['cr_nc_all'] = modelo.clear_sky(band = 'all')
 
 	# # print(df)
 	figura(df)

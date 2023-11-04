@@ -58,8 +58,6 @@ def non_linear_derivative(y, x):
 		y_plus = y[i + 1]
 
 		# calculando termos
-		# termo1 = h_minus / (h_plus + h_minus) * (y_plus - y_0) / h_plus
-		# termo2 = h_plus / (h_plus + h_minus) * (y_0 - y_minus) / h_minus
 		termo1 = h_plus / (h_plus + h_minus) * (y_plus - y_0) / h_plus
 		termo2 = h_minus / (h_plus + h_minus) * (y_0 - y_minus) / h_minus
 

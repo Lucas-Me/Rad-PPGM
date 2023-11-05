@@ -147,15 +147,12 @@ def relative_humidty_from_density(Qv, T):
 
 def density_water_vapor(T, Td):
 	'''
-	Calcula a densidade de vapor d'água na parcela, dada a pressão, temperatura,
-	razão de mistura e temperatura do ponto de orvalho.
+	Calcula a densidade de vapor d'água na parcela, dada a temperatura e temperatura do ponto de orvalho.
 
 	Entrada: Array | float
 
 		T: Temperatura [K]
 		Td: Temperatura do ponto de orvalho [K]
-		p: Pressão atmosférica [hPa]
-		w: razão de mistura [Kg / Kg]
 
 	Saída: Array | float - [Kg / m³]
 	'''

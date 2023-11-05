@@ -355,6 +355,9 @@ def transmitance_vib(u):
 		[2050, 2200],
 	]) # [cm^-1]
 
+	# Garante que u é positivo, afinal so depende do caminho
+	u = np.abs(u)
+
 	# Constantes para cada intervalo
 	# ------------------------------
 

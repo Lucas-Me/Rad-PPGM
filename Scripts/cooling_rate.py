@@ -21,8 +21,8 @@ import scipy.interpolate as interp
 
 # IMPORTS LOCAIS
 # --------------
-import scripts.broadband as broadband
-import scripts.calc as calc
+import Scripts.broadband as broadband
+import Scripts.calc as calc
 
 
 class CoolingRate(object):
@@ -39,7 +39,7 @@ class CoolingRate(object):
 	Cp = 1005 # Calor específico a pressão cte [J * Kg^-1 * K^-1]
 	Rv = 461.5 # Cte individual do vapor d'agua [J * Kg^-1 * K^-1]
 
-	def __init__(self, T, u, q, p, Qv):
+	def __init__(self, T, u, q, p, Qv, z, nlevels = None):
 		'''
 		Parameters
         ----------
@@ -52,7 +52,11 @@ class CoolingRate(object):
 		p : Array[float]
 			Pressão atmosférica [hPa]
 		Qv : Array[float]
-			Densidade do vapor d'água na parcela [Kg / m³] 
+			Densidade do vapor d'água na parcela [Kg / m³]
+		z : Array[float]
+			Altitude de cada nivel da sondagem [metros]
+		nlevels : int [opcional]
+			Interpola a sondagem para "nlevels" niveis.
 		'''
 
 		# Define as variáveis privadas desta classe
@@ -61,6 +65,17 @@ class CoolingRate(object):
 		self.q = q
 		self.p = p
 		self.Qv = Qv
+		self.z = z
+
+		# Interpola para n niveis da sondagem, se especificado pelo usuario
+		if nlevels is not None:
+			new_z = np.linspace(self.z[0], self.z[-1], nlevels)
+			self.T = np.interp(new_z, self.z, self.T)
+			self.q = np.interp(new_z, self.z, self.q)
+			self.p = np.interp(new_z, self.z, self.p)
+			self.Qv = np.interp(new_z, self.z, self.Qv)
+			self.u = np.interp(new_z, self.z, self.u)
+			self.z = new_z
 
 		# Numero de niveis
 		self.nlevs = self.u.shape[0]
@@ -68,12 +83,12 @@ class CoolingRate(object):
 		# Calcula parâmetros que serão utilizados, baseado nas variaveis acima
 		# ---------------------------------------------------------------------
 		# Pressão parcial do vapor na parcela de ar [Pa]
-		self.e = Qv * self.Rv * T  # Lei do gás ideal 
+		self.e = self.Qv * self.Rv * self.T  # Lei do gás ideal 
 
 		# Path length (u) corrigido para cada banda de absorcao
-		self.u_rot = broadband.path_length_rot(T, p, self.u)
-		self.u_cont = broadband.path_length_cont(T, self.u, self.e)
-		self.u_vib = broadband.path_length_vib(self.u, p)
+		self.u_rot = broadband.path_length_rot(self.T, self.p, self.u)
+		self.u_cont = broadband.path_length_cont(self.T, self.u, self.e)
+		self.u_vib = broadband.path_length_vib(self.u, self.p)
 
 		# Derivadas importantes
 		# ---------------------------------------------------------------------
@@ -106,7 +121,6 @@ class CoolingRate(object):
 
 		# loop pra cada nível
 		for i in range(self.nlevs): # ultimo nao incluso
-			
 			# Fluxo ascendente
 			upward_flux[i] = self._upward_flux(i, band)
 			
@@ -126,7 +140,7 @@ class CoolingRate(object):
 
 		return cooling_rate
 	
-	def cloudy_atmosphere(self, band : str, Ect : float, Ecb : float, Tc : float, Rc : float, Nct : int, Ncb : int):
+	def cloudy_atmosphere(self, band : str, Ect : float, Ecb : float, Tc : float, Rc : float, Zct : int, Zcb : int):
 		'''
 		Taxa de resfriamento considerando um céu com nuvem.
 
@@ -153,10 +167,10 @@ class CoolingRate(object):
 			refletividade da nuvem, no intervalo [0, 1].
 
 		Ncb : int
-			índice que representa o nível da base da nuvem na sondagem.
+			Nível da base da nuvem na sondagem [m].
 		
 		Nct : int
-			índice que representa o nível do topo da nuvem na sondagem.
+			Nível do topo da nuvem na sondagem [m].
 
 		Returns
 		-------
@@ -168,8 +182,10 @@ class CoolingRate(object):
 		self._Ecb = Ecb
 		self._Tc = Tc
 		self._Rc = Rc
-		self._Ncb = Ncb
-		self._Nct = Nct
+
+		# Definindo o indice da base e topo da nuvem 
+		self._Ncb = np.count_nonzero(self.z < Zcb)
+		self._Nct = np.count_nonzero(self.z < Zct) - 1
 
 		# Inicializa a integral [J * m^-2 * s^-1]
 		upward_flux = np.full(self.nlevs, fill_value=np.nan)
@@ -178,17 +194,17 @@ class CoolingRate(object):
 		# loop pra cada nível
 		for i in range(self.nlevs): # ultimo nao incluso
 			# Verifica se este nível é a nuvem
-			if i >= Ncb and i <= Nct:
+			if i >= self._Ncb and i <= self._Nct:
 				continue
 
 			# Fluxo ascendente, checa se este nível está acima da nuvem
-			if i > Nct:
+			if i > self._Nct:
 				upward_flux[i] = self._cloud_upward_flux(i, band)
 			else:
 				upward_flux[i] = self._upward_flux(i, band)
 
 			# Fluxo descendente, checa se este nível está abaixo da nuvem
-			if i < Ncb :
+			if i < self._Ncb :
 				downward_flux[i] = self._cloud_downward_flux(i, band)
 			else:
 

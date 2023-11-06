@@ -23,7 +23,7 @@
 import numpy as np
 
 # IMPORTS LOCAIS
-from scripts.calc import *
+from Scripts.calc import *
 
 # CONSTANTES
 # ----------------------------------------------------------
@@ -63,7 +63,7 @@ intervalos = np.array([
 
 # Constantes A' e B' segundo a equação 23 de [1].
 dvi = intervalos[:, 1] - intervalos[:, 0]
-dv = 860 # cm^-1
+dv = intervalos[-1, -1] - intervalos[0, 0] # cm^-1
 v_mean = np.mean(intervalos, axis = 1)
 #
 A_ = np.sum(dvi * a_) / dv
@@ -100,12 +100,9 @@ def path_length_rot(T, p, u):
 	# Função a ser integrada
 	Tmean = (T[1:] + T[:-1]) / 2
 	pmean = (p[1:] + p[:-1]) / 2
+	# y = p[1:] / p[:-1] * np.exp(A_ * (Tmean - T0) + B_ * (Tmean - T0) ** 2)
 	y = pmean / p0 * np.exp(A_ * (Tmean - T0) + B_ * (Tmean - T0) ** 2)
 	integrate = np.diff(u) * y
-
-	# pedacos da integral (Metodo trapezoidal)
-	# y = p / 1013 * np.exp(A_ * (T - T0) + B_ * (T - T0) ** 2)
-	# integrate = np.diff(u) * (y[1:] + y[:-1]) / 2
 
 	# Inicializa um array vazio para armazenar os resultados
 	u_ajustado = np.zeros(u.shape, dtype = np.float64)

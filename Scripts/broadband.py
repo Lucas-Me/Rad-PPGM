@@ -37,10 +37,10 @@ b = np.array(
 	) * 1e-6 # (deg^-2)
 
 # k / delta (g^-1 cm²)
-Rw1 = np.array([7210.3, 6024.8, 1614.1, 139.03, 21.64, 2.919, 0.3856, 0.0715])
+C1 = np.array([7210.3, 6024.8, 1614.1, 139.03, 21.64, 2.919, 0.3856, 0.0715])
 
 # pi * alpha_0 / delta (adimensional)
-Rw2 = np.array([0.182, 0.094, 0.081, 0.080, 0.068, 0.060, 0.059, 0.067])
+C2 = np.array([0.182, 0.094, 0.081, 0.080, 0.068, 0.060, 0.059, 0.067])
 
 # a' e b' para cada interalo de numero de onda (TABLE 3. de [2]]
 a_ = np.array(
@@ -135,25 +135,25 @@ def transmitance_rot(T, u):
 	# Calculos
 	# ------------------------------------------------------------
 	T0 = 260 # K
-
-	# Curtis-Godson approximation
+	
+	n = a.shape[0]
 	du = np.abs(np.diff(u))
 	Tmean = (T[1:] + T[:-1]) / 2
-	n = a.shape[0]
-	exp1 = np.exp(a.reshape((n, 1)) * (Tmean - T0) + b.reshape((n, 1))  * (Tmean - T0) ** 2)
-	exp2 = np.exp(a_.reshape((n, 1)) * (Tmean - T0) + b_.reshape((n, 1))  * (Tmean - T0) ** 2)
 
+	transmitance = np.ones(n)
 	# Se du = 0, transmitancia é 1.
 	if du.shape[0] == 0 or np.sum(du) == 0:
 		return (intervalos, np.ones(n))
+	
+	for i in range(du):
+	# Curtis-Godson approximation
+	exp1 = np.exp(a[] * (Tmean - T0) + b.reshape((n, 1))  * (Tmean - T0) ** 2)
+	exp2 = np.exp(a_[] * (Tmean - T0) + b_.reshape((n, 1))  * (Tmean - T0) ** 2)
 
-	# S/s0
-	Sm = np.matmul(exp1, du)
-	Am = np.matmul(exp2, du)
 
 	# Termo da transmitanica difusa
-	termo_raiz = 1 + 1.66 * Rw1 / Rw2 * Sm * Sm / Am
-	expoente = 1.66 * Sm * Rw1 * np.power(termo_raiz, -0.5)
+	termo_raiz = 1 + 1.66 * C1 / C2 * np.matmul(exp1 ** 2 / exp2, du)
+	expoente = 1.66 * C1 * np.matmul(exp1, du) * np.power(termo_raiz, -0.5)
 	
 	# Calculo da transmitancia difusa
 	transmitance = np.exp(-expoente)

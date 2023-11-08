@@ -38,6 +38,7 @@ class CoolingRate(object):
 	# Constantes
 	Cp = 1005 # Calor específico a pressão cte [J * Kg^-1 * K^-1]
 	Rv = 461.5 # Cte individual do vapor d'agua [J * Kg^-1 * K^-1]
+	R = 287 # Cte individual do ar seco [J * Kg^-1 * K^-1]
 
 	def __init__(self, T, u, q, p, Qv, z, nlevels = None):
 		'''
@@ -135,7 +136,7 @@ class CoolingRate(object):
 		# Taxa de resfriamento
 		# ---------------------
 		dfluxdu = calc.first_derivative(upward_flux - downward_flux, self.u * 10)
-		cooling_rate = - 1 * self.q / Cpm * dfluxdu # [K/s]
+		cooling_rate = - 1 * (self.q / Cpm) * dfluxdu # [K/s]
 
 		# converte a unidade para [K / day]
 		cooling_rate = cooling_rate * 3600 * 24

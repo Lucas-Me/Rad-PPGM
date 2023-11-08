@@ -98,16 +98,12 @@ def path_length_rot(T, p, u):
 	p0 = 1013 # [hPa]
 
 	# Função a ser integrada
-	Tmean = (T[1:] + T[:-1]) / 2
-	pmean = (p[1:] + p[:-1]) / 2
-	# y = p[1:] / p[:-1] * np.exp(A_ * (Tmean - T0) + B_ * (Tmean - T0) ** 2)
-	y = pmean / p0 * np.exp(A_ * (Tmean - T0) + B_ * (Tmean - T0) ** 2)
-	integrate = np.diff(u) * y
+	y = p / p0 * np.exp(A_ * (T - T0) + B_ * (T - T0) ** 2)
 
 	# Inicializa um array vazio para armazenar os resultados
 	u_ajustado = np.zeros(u.shape, dtype = np.float64)
-	for i in range(integrate.shape[0]):
-		u_ajustado[i + 1] = np.sum(integrate[:i + 1])
+	for i in range(u_ajustado.shape[0]):
+		u_ajustado[i] = np.trapz(y[:i + 1], u[:i + 1])
 
 	return u_ajustado
 
@@ -209,14 +205,13 @@ def path_length_cont(T, u, e):
 	# funcao a ser integrada
 	y = (e / e0) * np.exp(- 1800 * (T - T0) / (T * T0) )
 
-	# Integrando da superfície até o topo, metodo trapezoidal
-	# ---------------------------------------------
-	integrate = np.diff(u) * (y[1:] + y[:-1]) / 2
-
 	# Inicializa um array vazio para armazenar os resultados
 	u_ajustado = np.zeros(u.shape, dtype = np.float64)
-	for i in range(integrate.shape[0]):
-		u_ajustado[i + 1] = np.sum(integrate[:i + 1])
+	
+	# Integrando da superfície até o topo, metodo trapezoidal
+	# ---------------------------------------------
+	for i in range(u_ajustado.shape[0]):
+		u_ajustado[i] = np.trapz(y[:i + 1], u[:i + 1])
 
 	return u_ajustado
 

@@ -92,6 +92,8 @@ class CoolingRate(object):
 
 		# Derivadas importantes
 		# ---------------------------------------------------------------------
+		self.dSigmaT4dz = calc.first_derivative(
+			calc.stefan_boltzmann(self.T), self.z)
 		self.dSigmaT4du = calc.first_derivative(
 			calc.stefan_boltzmann(self.T), self.u)
 
@@ -259,14 +261,14 @@ class CoolingRate(object):
 			)
 
 			# Funcao
-			f1 = Ef1 * self.dSigmaT4du[i + 1]
-			f0 = Ef0 * self.dSigmaT4du[i]
+			f1 = Ef1 * self.dSigmaT4dz[i + 1]
+			f0 = Ef0 * self.dSigmaT4dz[i]
 
 			# Valor medio da funcao
 			f_ = (f1 + f0) / 2
 
 			# adiciona o fluxo desta camada
-			integrated_flux += f_ * (self.u[i + 1] - self.u[i])
+			integrated_flux += f_ * (self.z[i + 1] - self.z[i])
 
 		return integrated_flux + surf_flux
 	
@@ -302,14 +304,14 @@ class CoolingRate(object):
 			)
 
 			# Funcao
-			f1 = Ef1 * self.dSigmaT4du[i - 1]
-			f0 = Ef0 * self.dSigmaT4du[i]
+			f1 = Ef1 * self.dSigmaT4dz[i - 1]
+			f0 = Ef0 * self.dSigmaT4dz[i]
 
 			# Valor medio da funcao
 			f_ = (f1 + f0) / 2
 
 			# adiciona o fluxo desta camada
-			integrated_flux += f_ * (self.u[i - 1] - self.u[i])
+			integrated_flux += f_ * (self.z[i - 1] - self.z[i])
 
 		return integrated_flux + top_flux
 

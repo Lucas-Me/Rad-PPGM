@@ -155,21 +155,21 @@ def transmitance_rot(T, u):
 		exp1 = np.exp(a[i] * (Tmean - T0) + b[i]  * (Tmean - T0) ** 2)
 		exp2 = np.exp(a_[i] * (Tmean - T0) + b_[i]  * (Tmean - T0) ** 2)
 
-		# Integrais dos expoentes
-		# beta = np.sum((exp1[1:] + exp1[:-1]) / 2 * du) / U
-		# gama = np.sum((exp2[1:] + exp2[:-1]) / 2 * du)
+		# # Integrais dos expoentes
+		# phi = np.sum(exp1 * du)
+		# gama = np.sum(exp2 * du)
 
 		# Calculo da transmitancia difusa
 		# -------------------------------
-		# termo_raiz = 1 + (1.66 * C1[i] * beta ** 2 * U) / (C2[i] * gama)
-		# expoente =  - 1.66 * C1[i] * beta * U / np.sqrt(termo_raiz)
+		# termo_raiz = 1 + (1.66 * C1[i] * phi ** 2) / (C2[i] * gama)
+		# expoente =  - 1.66 * C1[i] * phi / np.sqrt(termo_raiz)
 		termo_raiz = 1 + (1.66 * C1[i] * exp1 ** 2 * du) / (C2[i] * exp2)
 		expoente =  - 1.66 * C1[i] * exp1 * du / np.sqrt(termo_raiz)
 
 		transmitance[i] = np.exp(np.sum(expoente))
 	
-	if np.any(transmitance > 1) or np.any(transmitance < 0):
-		print(transmitance)
+	# if np.any(transmitance > 1) or np.any(transmitance < 0):
+	# 	print(transmitance)
 		
 	return (intervalos, transmitance)
 

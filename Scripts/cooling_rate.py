@@ -132,7 +132,6 @@ class CoolingRate(object):
 
 		# Taxa de resfriamento
 		# ---------------------
-		print(upward_flux, '\n', downward_flux)
 		dfluxdu = calc.first_derivative(upward_flux - downward_flux, self.u * 10)
 		cooling_rate = - 1 * self.q / Cpm * dfluxdu # [K/s]
 

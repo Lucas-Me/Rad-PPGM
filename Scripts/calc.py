@@ -50,6 +50,8 @@ def non_linear_derivative(y, x):
 	
 	dydx = []
 	for i in range(1, y.shape[0] - 1):
+		# Método 1
+		# ---------
 		# parametros
 		h_minus = x[i] - x[i - 1]
 		h_plus = x[i + 1] - x[i]
@@ -63,6 +65,30 @@ def non_linear_derivative(y, x):
 
 		# armazena o resultado
 		result = termo1 + termo2
+
+		# Método 2
+		# ---------
+		# parametros
+		# h_plus = x[i + 1] - x[i]
+		# h_minus = x[i] - x[i - 1]
+
+		# # calcula os termos
+		# termo1 = (1 / h_plus - 1 / (h_plus + h_minus)) * y[i + 1]
+		# termo2 = (1 / h_minus - 1 / h_plus) * y[i]
+		# termo3 = (1 / (h_plus + h_minus) - 1 / h_minus) * y[i - 1]
+
+		# # armazena o resultado
+		# result = termo1 + termo2 + termo3		
+
+		# Método 3
+		# ---------
+		# # parametros
+		# h_plus = x[i + 1] - x[i]
+		# h_minus = x[i] - x[i - 1]
+
+		# # calcula os termos
+		# result = (y[i + 1] - y[i - 1]) / (h_plus + h_minus)
+
 		dydx.append(result)
 
 	return np.array(dydx)
@@ -86,16 +112,18 @@ def first_derivative(y, x):
 	'''
 
 	# inicializa a variavel
-	dydx = np.full(y.shape[0], np.nan)
+	# dydx = np.full(y.shape[0], np.nan)
 	
-	# Forward
-	dydx[0] = (y[1] - y[0]) / (x[1] - x[0])
+	# # Forward
+	# dydx[0] = (y[1] - y[0]) / (x[1] - x[0])
 
-	# Backward
-	dydx[-1] = (y[-1] - y[-2]) / (x[-1] - x[-2])
+	# # Backward
+	# dydx[-1] = (y[-1] - y[-2]) / (x[-1] - x[-2])
 
-	# Method A - "Playing with nonuniform grids", Veldman & Rinzema (1992)
-	dydx[1:-1] = non_linear_derivative(y, x)
+	# # Method A - "Playing with nonuniform grids", Veldman & Rinzema (1992)
+	# dydx[1:-1] = non_linear_derivative(y, x)
+
+	dydx = np.gradient(y, x)
 
 	return dydx
 

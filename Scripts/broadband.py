@@ -134,30 +134,47 @@ def transmitance_rot(T, u):
 
 	# Calculos
 	# ------------------------------------------------------------
-	T0 = 260 # K
-	
-	n = a.shape[0]
-	du = np.abs(np.diff(u))
+	T0 = 260 # K	
 	Tmean = (T[1:] + T[:-1]) / 2
 
+	# Infinitesimos do caminho otico e caminho otico total
+	du = np.abs(np.diff(u))
+	U = np.sum(du)
+
+	# Quantidade de intervalos espectrais
+	n = a.shape[0]
+
+	# Inicializa o array da transmitancia em cada intervalo do espectro
 	transmitance = np.ones(n)
+
 	# Se du = 0, transmitancia é 1.
-	if du.shape[0] == 0 or np.sum(du) == 0:
+	if du.shape[0] == 0 or U == 0:
 		return (intervalos, np.ones(n))
 	
-	for i in range(du):
-	# Curtis-Godson approximation
-	exp1 = np.exp(a[] * (Tmean - T0) + b.reshape((n, 1))  * (Tmean - T0) ** 2)
-	exp2 = np.exp(a_[] * (Tmean - T0) + b_.reshape((n, 1))  * (Tmean - T0) ** 2)
+	# Loop para cada intervalo do espectro entre 40 e 900 cm-1 
+	for i in range(n):
 
+		# Curtis-Godson approximation
+		# ---------------------------
+		exp1 = np.exp(a[i] * (Tmean - T0) + b[i]  * (Tmean - T0) ** 2)
+		exp2 = np.exp(a_[i] * (Tmean - T0) + b_[i]  * (Tmean - T0) ** 2)
 
-	# Termo da transmitanica difusa
-	termo_raiz = 1 + 1.66 * C1 / C2 * np.matmul(exp1 ** 2 / exp2, du)
-	expoente = 1.66 * C1 * np.matmul(exp1, du) * np.power(termo_raiz, -0.5)
+		# Integrais dos expoentes
+		# beta = np.sum((exp1[1:] + exp1[:-1]) / 2 * du) / U
+		# gama = np.sum((exp2[1:] + exp2[:-1]) / 2 * du)
+
+		# Calculo da transmitancia difusa
+		# -------------------------------
+		# termo_raiz = 1 + (1.66 * C1[i] * beta ** 2 * U) / (C2[i] * gama)
+		# expoente =  - 1.66 * C1[i] * beta * U / np.sqrt(termo_raiz)
+		termo_raiz = 1 + (1.66 * C1[i] * exp1 ** 2 * du) / (C2[i] * exp2)
+		expoente =  - 1.66 * C1[i] * exp1 * du / np.sqrt(termo_raiz)
+
+		transmitance[i] = np.exp(np.sum(expoente))
 	
-	# Calculo da transmitancia difusa
-	transmitance = np.exp(-expoente)
-	
+	if np.any(transmitance > 1) or np.any(transmitance < 0):
+		print(transmitance)
+		
 	return (intervalos, transmitance)
 
 
@@ -265,19 +282,22 @@ def transmitance_cont(T, u, p, e):
 
 	# Correcao de temperatura e pressao
 	gama = 0.005
-	correcao_T = np.exp(1800 * (1 / T - 1 / 296)) 
-	correcao_P = (e + gama * (p * 1e2 - e)) * 9.86923 * 1e-6 # [atm]
+	Tmean = (T[1:] + T[:-1]) / 2
+	e_mean = (e[1:] + e[:-1]) / 2
+	p_mean = (p[1:] + p[:-1]) / 2
+	correcao_T = np.exp(1800 * (1 / Tmean - 1 / 296)) 
+	correcao_P = (e_mean + gama * (p_mean * 1e2 - e_mean)) * 9.86923 * 1e-6 # [atm]
 	
 	# k corrigido (sigma)
 	sigma = np.matmul(
 		k.reshape((3, 1)),
-		(correcao_T * correcao_P).reshape((1, e.shape[0]))
+		(correcao_T * correcao_P).reshape((1, correcao_P.shape[0]))
 	)  # em [g^-1 cm^2]
 
 	# Calculo da transmitancia
 	# ----------------------------------
 	expoente = np.matmul(
-		 (sigma[:, 1:] + sigma[:, :-1]) / 2,
+		 sigma,
 		 np.abs(np.diff(u))
 	)
 	transmitance = np.exp(-expoente)

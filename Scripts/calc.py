@@ -128,6 +128,30 @@ def first_derivative(y, x):
 	return dydx
 
 
+def mixing_ratio_from_dewpoint_pressure(Td, p):
+	'''
+	Calcula a razão de mistura a partir da temperatura do ponto de orvalho
+	e pressão atmosférica
+
+	OBS: Se Td for passado na equação da pressão de vapor de saturação, o resultado
+	será a pressão de vapor atual da parcela.
+
+	Parameters
+	----------
+	Td: float | array[float]
+		Temperatura do ponto de orvalho [K]
+	p: float | array[float]
+		pressão atmosférica [hPa]
+	'''
+
+	# Calcula a  pressão de vapor
+	e = saturation_vapor_pressure(Td - 273.15)
+
+	# calcula a razão de mistura
+	w = 621.97 * e / (p - e)
+
+	return w
+
 def saturation_vapor_pressure(T):
 	'''
 	Calcula a pressão de vapor de saturação necessária para uma parcela de ar à temperatura

@@ -39,7 +39,7 @@ class CoolingRate(object):
 	Rv = 461.5 # Cte individual do vapor d'agua [J * Kg^-1 * K^-1]
 	R = 287 # Cte individual do ar seco [J * Kg^-1 * K^-1]
 
-	def __init__(self, T, q, p, Qv, z, nlevels = None):
+	def __init__(self, T, q, p, Qv, z):
 		'''
 		Parameters
         ----------
@@ -64,15 +64,6 @@ class CoolingRate(object):
 		self.Qv = Qv
 		self.z = z
 
-		# Interpola para n niveis da sondagem, se especificado pelo usuario
-		if nlevels is not None:
-			new_z = np.linspace(self.z[0], self.z[-1], nlevels)
-			self.T = np.interp(new_z, self.z, self.T)
-			self.q = np.interp(new_z, self.z, self.q)
-			self.p = np.interp(new_z, self.z, self.p)
-			self.Qv = np.interp(new_z, self.z, self.Qv)
-			self.z = new_z
-
 		# Numero de niveis
 		self.nlevs = self.z.shape[0]
 
@@ -91,7 +82,6 @@ class CoolingRate(object):
 		self.u_rot = broadband.path_length_rot(self.T, self.p, self.u)
 		self.u_cont = broadband.path_length_cont(self.T, self.u, self.e)
 		self.u_vib = broadband.path_length_vib(self.u, self.p)
-
 
 	def clear_sky(self, band : str  = 'all'):
 		'''
@@ -132,6 +122,107 @@ class CoolingRate(object):
 		# ---------------------
 		dfluxdu = calc.first_derivative(upward_flux - downward_flux, self.u * 10)
 		cooling_rate = - 1 * (self.q / Cpm) * dfluxdu # [K/s]
+
+		# converte a unidade para [K / day]
+		cooling_rate = cooling_rate * 3600 * 24
+
+		return cooling_rate
+	
+	def clear_sky2(self, band : str  = 'all'):
+		'''
+		Taxa de resfriamento considerando um céu limpo, sem nuvens. Usando
+		a equação (4), simplificada.
+
+		Parameters
+		----------
+		band : str
+			Especifica a banda de absorcao a ser considerada, default = todas.
+			Opcoes disponiveis são:
+			- 'all' : todas as bandas
+			- 'rot' : apenas a banda do rotacional.
+			- 'cont' : apenas a banda do continuum.
+			- 'vib' : apenas a banda do vibracional-rotacional.
+
+		Returns
+		-------
+		cooling_rate : array[float]
+			Taxa de resfriamento [Kelvin / dia]
+		'''
+
+		# Variaveis importantes
+		ntop = self.nlevs - 1
+		Ef_topo = [self._emissivity(ntop, i, band) for i in range(self.nlevs)]
+		dEfDu_topo = calc.first_derivative(Ef_topo, self.u * 10)
+
+		# Inicializa a integral [J * m^-2 * s^-1]
+		fluxos = np.full(self.nlevs, fill_value=np.nan)
+
+		# loop pra cada nível
+		for i in range(self.nlevs):
+			# Emissão do topo
+			# ----------------
+			fluxo_1 = -1 * calc.stefan_boltzmann(self.T[-1]) * dEfDu_topo[i]
+
+			# INTEGRAL
+			# Contribuição de cada nivel
+			# --------------------------
+			fluxo_2 = 0 # Inicia como zero e vai somando
+			for j in range(self.nlevs - 1): # Esquece o ultimo indice
+
+				# Se i = sup, metodo forward
+				if i == 0:
+					n2 = i + 1
+					n1 = j if n2 > j else j + 1
+					Ef1 = self._emissivity(n1, n2, band, mean = True)
+					#
+					n2 = i
+					n1 = j if n2 > j else j + 1
+					Ef0 = self._emissivity(n1, n2,  band, mean = True)
+					dEfdu = (Ef1 - Ef0) / (self.u[i + 1] - self.u[i]) / 10
+
+				# Se i = topo, metodo backward
+				elif i == ntop:
+					n2 = i - 1
+					n1 = j if n2 > j else j + 1
+					Ef1 = self._emissivity(n1, n2,  band, mean = True)
+					#
+					n2 = i
+					n1 = j if n2 > j else j + 1
+					Ef0 = self._emissivity(n1, n2,  band, mean = True)
+					dEfdu = (Ef1 - Ef0) / (self.u[i - 1] - self.u[i]) / 10
+
+				# Diferencas centadas em um grid nao homogeneo
+				else:
+					hd = (self.u[i + 1] - self.u[i]) * 10
+					hs = (self.u[i] - self.u[i - 1]) * 10
+					#
+					n2 = i + 1
+					n1 = j if n2 > j else j + 1
+					Ef_plus = self._emissivity(n1, n2,  band, mean = True)
+					#
+					n2 = i
+					n1 = j if n2 > j else j + 1
+					Efi = self._emissivity(n1, n2, band, mean = True)
+					#
+					n2 = i - 1
+					n1 = j if n2 > j else j + 1
+					Ef_minus = self._emissivity(n1, n2,  band, mean = True)
+					#
+					numerador = hs ** 2 * Ef_plus + (hd ** 2 - hs ** 2) * Efi - hd** 2 * Ef_minus
+					denominador = hs * hd * (hd + hs)
+					dEfdu = numerador / denominador
+				
+				# Adiciona no fluxo
+				fluxo_2 += dEfdu * (calc.stefan_boltzmann(self.T[j + 1]) - calc.stefan_boltzmann(self.T[j]))
+
+			fluxos[i] = fluxo_1 + fluxo_2
+
+		# Cp do ar umido [J * Kg^-1 * K^-1]
+		Cpm = self.Cp * (1 + 0.9 * self.q)
+
+		# Taxa de resfriamento
+		# ---------------------
+		cooling_rate = - 1 * (self.q / Cpm) * fluxos # [K/s]
 
 		# converte a unidade para [K / day]
 		cooling_rate = cooling_rate * 3600 * 24
@@ -715,13 +806,16 @@ class CoolingRate(object):
 
 		# transforma em m^-1 e converte para frequencia (1/s)
 		c = 3 * 1e8
-		f = c * (intervalos * 1e2)
-		fmean = np.mean(f, axis = 1) # [1/s]
-		df = np.abs(f[:, 1] - f[:, 0]) # [1/s]
+		# f = c * (intervalos * 1e2)
+		# fmean = np.mean(f, axis = 1) # [1/s]
+		# df = np.abs(f[:, 1] - f[:, 0]) # [1/s]
+		intervalos = intervalos * 1e2
+		kmean = np.mean(intervalos, axis = 1)
+		dk = intervalos[:, 1] - intervalos[:, 0] # [1/m]
 
 		# Calcula a emissividade de cada intervalo da integral (freq) e soma
 		emissivity = np.nansum(
-			np.pi * calc.planck(fmean, T) * (1 - transmitance) * df 
+			np.pi * calc.planck_k(kmean, T) * (1 - transmitance) * c * dk 
 			) / steboltz
 		
 		return emissivity

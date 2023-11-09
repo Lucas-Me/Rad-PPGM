@@ -306,6 +306,44 @@ def planck(v, T):
 
 	return B
 
+def planck_k(k, T):
+	'''
+	Calcula a lei de Planck para um dado numero de onda e temperatura.
+
+	Parameters
+	----------
+	k: float | array[float]
+		Numero de onda [1 / m]
+	T: float | array[float]
+		Temperatura [K]
+
+	Returns
+	-------
+	B: float | array[float]
+		radiancia monocromatica [energy/area/time/sr/frequency]
+	'''
+
+	# Constante de Planck [J * s]
+	H = 6.626 * 1e-34
+
+	# Constante de Boltzmann (J / K)
+	K = 1.3806 * 1e-23 
+
+	# Velocidade da luz [m/s]
+	c = 3 * 1e8
+
+	# Frequencia [1 / s]
+	v = c * k
+
+	# Lei de Planck
+	numerador = 2 * H * v ** 3 # [J * s^-2]
+	denominador = c ** 2 * (np.exp(H * v / (K * T)) - 1) # [m² / s²]
+	
+	# Resultado [J * m^-2]
+	B = numerador / denominador
+
+	return B
+
 
 def stefan_boltzmann(T):
 	'''

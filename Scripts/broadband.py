@@ -27,29 +27,6 @@ from Scripts.calc import *
 
 # CONSTANTES
 # ----------------------------------------------------------
-# constantes
-a = np.array(
-	[-2.93, 1.43, 9.59, 14.3, 15.2, 19.0, 21.7, 24.1],
-	) * 1e-3 # (deg^-1)
-
-b = np.array(
-	[2.01, -13, -41.8, -23.7, -30.1, -44.6, -53.2, -40.3],
-	) * 1e-6 # (deg^-2)
-
-# k / delta (g^-1 cm²)
-C1 = np.array([7210.3, 6024.8, 1614.1, 139.03, 21.64, 2.919, 0.3856, 0.0715])
-
-# pi * alpha_0 / delta (adimensional)
-C2 = np.array([0.182, 0.094, 0.081, 0.080, 0.068, 0.060, 0.059, 0.067])
-
-# a' e b' para cada interalo de numero de onda (TABLE 3. de [2]]
-a_ = np.array(
-	[-2.68, 2.03, 9.08, 15.1, 16.2, 18.6, 23.1, 26.2],
-	) * 1e-3 # [▲K^-1]
-b_ = np.array(
-	[1.57, -10.3, -38.1, -54.1, -38.1, -62.6, -74.7, -74.1],
-	) * 1e-6 # [▲K^-2]
-
 # Respectivos intervalos de numero de onda
 intervalos = np.array([
 	[40, 160],
@@ -61,7 +38,31 @@ intervalos = np.array([
 	[720, 800],
 	[800, 900]]) # [cm^-1]
 
-# Constantes A' e B' segundo a equação 23 de [1].
+# k / delta (g^-1 cm²)
+C1 = np.array([7210.3, 6024.8, 1614.1, 139.03, 21.64, 2.919, 0.3856, 0.0715])
+
+# pi * alpha_0 / delta (adimensional)
+C2 = np.array([0.182, 0.094, 0.081, 0.080, 0.068, 0.060, 0.059, 0.067])
+
+# a e b para cada interalo de numero de onda (TABLE 3. de [2]]
+a = np.array(
+	[-2.93, 1.43, 9.59, 14.3, 15.2, 19.0, 21.7, 24.1],
+	) * 1e-3 # (deg^-1)
+
+b = np.array(
+	[2.01, -13, -41.8, -23.7, -30.1, -44.6, -53.2, -40.3],
+	) * 1e-6 # (deg^-2)
+
+# a' e b' para cada interalo de numero de onda (TABLE 3. de [2]]
+a_ = np.array(
+	[-2.68, 2.03, 9.08, 15.1, 16.2, 18.6, 23.1, 26.2],
+	) * 1e-3 # [▲K^-1]
+b_ = np.array(
+	[1.57, -10.3, -38.1, -54.1, -38.1, -62.6, -74.7, -74.1],
+	) * 1e-6 # [▲K^-2]
+
+# Constantes A' e B' pela equação 23 de [1].
+# -----------------------------------------------
 dvi = intervalos[:, 1] - intervalos[:, 0]
 dv = intervalos[-1, -1] - intervalos[0, 0] # cm^-1
 v_mean = np.mean(intervalos, axis = 1)
@@ -96,14 +97,17 @@ def path_length_rot(T, p, u):
 	# Temperatura inicial considerada na equação (22) de [1]
 	T0 = 260 # [K]
 	p0 = 1013 # [hPa]
+	pmean = (p[1:] + p[:-1]) / 2
+	Tmean = (T[1:] + T[:-1]) / 2
 
 	# Função a ser integrada
-	y = p / p0 * np.exp(A_ * (T - T0) + B_ * (T - T0) ** 2)
+	y = pmean / p0 * np.exp(A_ * (Tmean - T0) + B_ * (Tmean - T0) ** 2)
+	du = np.diff(u)
 
 	# Inicializa um array vazio para armazenar os resultados
 	u_ajustado = np.zeros(u.shape, dtype = np.float64)
-	for i in range(u_ajustado.shape[0]):
-		u_ajustado[i] = np.trapz(y[:i + 1], u[:i + 1])
+	for i in range(1, u_ajustado.shape[0]):
+		u_ajustado[i] = np.sum(y[:i] * du[:i])
 
 	return u_ajustado
 

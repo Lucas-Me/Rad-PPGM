@@ -39,7 +39,7 @@ intervalos = np.array([
 	[800, 900]]) # [cm^-1]
 
 # k / delta (g^-1 cm²)
-C1 = np.array([7210.3, 6024.8, 1614.1, 139.03, 21.64, 2.919, 0.3856, 0.0715])
+C1 = np.array([7240.3, 6024.8, 1614.1, 139.03, 21.64, 2.919, 0.3856, 0.0715])
 
 # pi * alpha_0 / delta (adimensional)
 C2 = np.array([0.182, 0.094, 0.081, 0.080, 0.068, 0.060, 0.059, 0.067])
@@ -159,14 +159,8 @@ def transmitance_rot(T, u):
 		exp1 = np.exp(a[i] * (Tmean - T0) + b[i]  * (Tmean - T0) ** 2)
 		exp2 = np.exp(a_[i] * (Tmean - T0) + b_[i]  * (Tmean - T0) ** 2)
 
-		# # Integrais dos expoentes
-		# phi = np.sum(exp1 * du)
-		# gama = np.sum(exp2 * du)
-
 		# Calculo da transmitancia difusa
 		# -------------------------------
-		# termo_raiz = 1 + (1.66 * C1[i] * phi ** 2) / (C2[i] * gama)
-		# expoente =  - 1.66 * C1[i] * phi / np.sqrt(termo_raiz)
 		termo_raiz = 1 + (1.66 * C1[i] * exp1 ** 2 * du) / (C2[i] * exp2)
 		expoente =  - 1.66 * C1[i] * exp1 * du / np.sqrt(termo_raiz)
 
